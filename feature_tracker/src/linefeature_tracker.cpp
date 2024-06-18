@@ -17,6 +17,9 @@ void LineFeatureTracker::readIntrinsicParameter(const string &calib_file)
 
 }
 
+/**
+ * @return 得到归一化平面上的坐标
+*/
 vector<Line> LineFeatureTracker::undistortedLineEndPoints()
 {
     vector<Line> un_lines;
