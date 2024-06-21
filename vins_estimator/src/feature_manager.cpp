@@ -498,12 +498,11 @@ double FeatureManager::reprojection_error( Vector4d obs, Matrix3d Rwc, Vector3d 
 
     return error / 2.0;
 }
-//
-void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
-{
-    //std::cout<<"linefeature size: "<<linefeature.size()<<std::endl;
-    for (auto &it_per_id : linefeature)        // 遍历每个特征，对新特征进行三角化
-    {
+/**
+ * https://blog.csdn.net/weixin_43849505/article/details/126424570
+ */
+void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]) {
+    for (auto &it_per_id : linefeature) {    // 遍历每个特征，对新特征进行三角化
         it_per_id.used_num = it_per_id.linefeature_per_frame.size();    // 已经有多少帧看到了这个特征
         if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2))   // 看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
             continue;
