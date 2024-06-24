@@ -499,22 +499,28 @@ double FeatureManager::reprojection_error( Vector4d obs, Matrix3d Rwc, Vector3d 
     return error / 2.0;
 }
 /**
- * https://blog.csdn.net/weixin_43849505/article/details/126424570
- */
-void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]) {
-    for (auto &it_per_id : linefeature) {    // 遍历每个特征，对新特征进行三角化
+ * @param Ps,滑动窗口内每一帧的位姿里面的t的部分
+ * @param tic,相机和IMU之间的转换关系
+ * @param ric,相机和IMU之间的转换关系
+*/
+void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
+{
+    //std::cout<<"linefeature size: "<<linefeature.size()<<std::endl;
+    for (auto &it_per_id : linefeature)//遍历每个特征,对新特征进行三角化
+    {
         it_per_id.used_num = it_per_id.linefeature_per_frame.size();    // 已经有多少帧看到了这个特征
-        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2))   // 看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
+        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
             continue;
 
         if (it_per_id.is_triangulation)       // 如果已经三角化了
             continue;
 
-        int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
+        int imu_i = it_per_id.start_frame;//固定指向线特征的起始帧
+        imu_j = imu_i - 1;//非起始帧的每一个观测
 
         ROS_ASSERT(NUM_OF_CAM == 1);
 
-        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];   // twc = Rwi * tic + twi
+        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];   // twc = Rwi * tic + twi//worldTimu * imuTcam = worldTcam_i
         Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];               // Rwc = Rwi * Ric
 
         double d = 0, min_cos_theta = 1.0;
@@ -525,7 +531,7 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
         // plane pi from ith obs in ith camera frame
         Eigen::Vector4d pii;
         Eigen::Vector3d ni;      // normal vector of plane    
-        for (auto &it_per_frame : it_per_id.linefeature_per_frame)   // 遍历所有的观测， 注意 start_frame 也会被遍历
+        for (auto &it_per_frame : it_per_id.linefeature_per_frame)//遍历所有的观测,注意 start_frame 也会被遍历
         {
             imu_j++;
 
@@ -534,16 +540,16 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
                 obsi = it_per_frame.lineobs;
                 Eigen::Vector3d p1( obsi(0), obsi(1), 1 );
                 Eigen::Vector3d p2( obsi(2), obsi(3), 1 );
-                pii = pi_from_ppp(p1, p2,Vector3d( 0, 0, 0 ));
+                pii = pi_from_ppp(p1, p2,Vector3d( 0, 0, 0 ));//线段的两个端点,相机光心,返回值是平面方程ax+by+cz+d=0中的4个参数
                 ni = pii.head(3); ni.normalize();
                 continue;
             }
 
             // 非start frame(其他帧)上的观测
-            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
+            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];//worldTimu * imuTcam = worldTcam_j
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
 
-            Eigen::Vector3d t = R0.transpose() * (t1 - t0);   // tij
+            Eigen::Vector3d t = R0.transpose() * (t1 - t0);   // tij//cam_iTworld * worldTcam_j = cam_iTcam_j
             Eigen::Matrix3d R = R0.transpose() * R1;          // Rij
             
             Eigen::Vector4d obsj_tmp = it_per_frame.lineobs;
@@ -645,7 +651,6 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
 
         //if(isnan(cp(0)))
         {
-
             //it_per_id.is_triangulation = false;
 
             //std::cout <<"------------"<<std::endl;
@@ -660,10 +665,7 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
             //std::cout << pij <<"\n\n";
 
         }
-
-
     }
-
 //    removeLineOutlier(Ps,tic,ric);
 }
 

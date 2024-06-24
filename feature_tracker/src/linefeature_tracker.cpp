@@ -38,6 +38,9 @@ vector<Line> LineFeatureTracker::undistortedLineEndPoints()
     return un_lines;
 }
 
+/**
+ * 线段匹配.对当前帧forw_lines的每一个线,遍历一遍上一帧所有线,寻找一个距离和角度最短的,之后在方向匹配.然后返回lineMatches<上一帧id,本帧id>
+*/
 void LineFeatureTracker::NearbyLineTracking(const vector<Line> forw_lines, const vector<Line> cur_lines,
                                             vector<pair<int, int> > &lineMatches) {
 
@@ -65,6 +68,7 @@ void LineFeatureTracker::NearbyLineTracking(const vector<Line> forw_lines, const
             if( delta_theta1 < th || delta_theta2 < th)
             {
                 //std::cout << "theta: "<< lf.theta * 180 / 3.14259 <<" "<< lc.theta * 180 / 3.14259<<" "<<delta_theta1<<" "<<delta_theta2<<std::endl;
+                // 距离和角度都满足的话,放入候选 candidate
                 candidate.push_back(lc);
                 //float cost = fabs(lf.image_dx - lc.image_dx) + fabs( lf.image_dy - lc.image_dy) + 0.1 * dist;
                 float cost = fabs(lf.line_grad_avg - lc.line_grad_avg) + dist/10.0;
@@ -360,6 +364,12 @@ void visualize_line_match(Mat imageMat1, Mat imageMat2,
     waitKey(1);
 }
 
+/**
+ * 1.undistort image
+ * 2.extract line feature
+ * 3.match line feature
+ * 4.visualize
+*/
 void LineFeatureTracker::readImage(const cv::Mat &_img)
 {
     cv::Mat img;
@@ -411,7 +421,7 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
 //////////////////////////
     for ( int i = 0; i < (int) lsd.size(); i++ )
     {
-        if( lsd[i].octave == 0 && lsd[i].lineLength >= 30)
+        if( lsd[i].octave == 0 && lsd[i].lineLength >= 30)//第一层提取到的且长度超过30个像素
         {
             keylsd.push_back( lsd[i] );
             keylbd_descr.push_back( lbd_descr.row( i ) );

@@ -17,10 +17,10 @@ lineProjectionFactor::lineProjectionFactor(const Eigen::Vector4d &_obs_i) : obs_
 */
 bool lineProjectionFactor::Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
 {
-    Eigen::Vector3d Pi(parameters[0][0], parameters[0][1], parameters[0][2]);
+    Eigen::Vector3d Pi(parameters[0][0], parameters[0][1], parameters[0][2]);//IMU位姿
     Eigen::Quaterniond Qi(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]);
 
-    Eigen::Vector3d tic(parameters[1][0], parameters[1][1], parameters[1][2]);
+    Eigen::Vector3d tic(parameters[1][0], parameters[1][1], parameters[1][2]);//imuTcam
     Eigen::Quaterniond qic(parameters[1][6], parameters[1][3], parameters[1][4], parameters[1][5]);
 
     Eigen::Vector4d line_orth( parameters[2][0],parameters[2][1],parameters[2][2],parameters[2][3]);
@@ -35,12 +35,12 @@ bool lineProjectionFactor::Evaluate(double const *const *parameters, double *res
     Vector6d line_c = plk_from_pose(line_b, Rbc, tbc);
 
     // 直线的投影矩阵K为单位阵
-    Eigen::Vector3d nc = line_c.head(3);
+    Eigen::Vector3d nc = line_c.head(3);//abc参数直接就是法向量参数
     double l_norm = nc(0) * nc(0) + nc(1) * nc(1);
     double l_sqrtnorm = sqrt( l_norm );
     double l_trinorm = l_norm * l_sqrtnorm;
 
-    double e1 = obs_i(0) * nc(0) + obs_i(1) * nc(1) + nc(2);
+    double e1 = obs_i(0) * nc(0) + obs_i(1) * nc(1) + nc(2);//2D,点到直线的距离
     double e2 = obs_i(2) * nc(0) + obs_i(3) * nc(1) + nc(2);
     Eigen::Map<Eigen::Vector2d> residual(residuals);
     residual(0) = e1/l_sqrtnorm;

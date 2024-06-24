@@ -29,6 +29,7 @@ public:
     static Eigen::Matrix2d sqrt_info;
     static double sum_t;
 };
+
 class lineProjectionFactor_instartframe : public ceres::SizedCostFunction<2, 4>
 {
 public:

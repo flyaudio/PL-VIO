@@ -3,7 +3,9 @@
 //
 #include "line_geometry.h"
 
-
+/**
+ * 线段参数转正交参数表示，这里线段参数 前三维为线段上一点 P PP（光心到直线垂线交点），后三维为方向向量，所以和plk_to_orth基本一致
+*/
 Vector4d line_to_orth(Vector6d line)
 {
     Vector4d orth;
@@ -139,6 +141,12 @@ Vector4d pi_from_ppp(Vector3d x1, Vector3d x2, Vector3d x3) {
 }
 
 // 两平面相交得到直线的plucker 坐标
+/**
+ * 其对应的是论文中普朗克坐标的计算方法，论文中用的表述方法是利用两个平面方程的向量形式叉乘从而得到一个矩阵，从矩阵中可以拆分出普朗克坐标需要的n和d
+ * @param pi1,平面方程的向量形式
+ * @param pi2,平面方程的向量形式
+ * @return pluker
+*/
 Vector6d pipi_plk( Vector4d pi1, Vector4d pi2){
     Vector6d plk;
     Matrix4d dp = pi1 * pi2.transpose() - pi2 * pi1.transpose();
@@ -152,6 +160,9 @@ Vector3d plucker_origin(Vector3d n, Vector3d v) {
     return v.cross(n) / v.dot(v);
 }
 
+/**
+ * 反对称矩阵
+*/
 Matrix3d skew_symmetric( Vector3d v ) {
     Matrix3d S;
     S << 0, -v(2), v(1), v(2), 0, -v(0), -v(1), v(0), 0;
@@ -159,12 +170,16 @@ Matrix3d skew_symmetric( Vector3d v ) {
 }
 
 
-
+/**
+ * @return Pcam = camTworld * Pworld
+*/
 Vector3d point_to_pose( Eigen::Matrix3d Rcw, Eigen::Vector3d tcw , Vector3d pt_w ) {
     return Rcw * pt_w + tcw;
 }
 
-// 从相机坐标系到世界坐标系
+/**
+ * @return Pworld = camTworld.inverse() * Pcam
+*/
 Vector3d poit_from_pose( Eigen::Matrix3d Rcw, Eigen::Vector3d tcw, Vector3d pt_c ) {
 
     Eigen::Matrix3d Rwc = Rcw.transpose();
@@ -172,6 +187,9 @@ Vector3d poit_from_pose( Eigen::Matrix3d Rcw, Eigen::Vector3d tcw, Vector3d pt_c
     return point_to_pose( Rwc, twc, pt_c );
 }
 
+/**
+ * 将空间直线的参数进行两个坐标系下的转换，其中线参数前3维是光心到直线的垂直点
+*/
 Vector6d line_to_pose(Vector6d line_w, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw) {
     Vector6d line_c;
 
@@ -194,7 +212,9 @@ Vector6d line_from_pose(Vector6d line_c, Eigen::Matrix3d Rcw, Eigen::Vector3d tc
     return line_to_pose( line_c, Rwc, twc );
 }
 
-// 世界坐标系到相机坐标系下
+/**
+ * @return 相机坐标系下的plk坐标
+ */ 
 Vector6d plk_to_pose( Vector6d plk_w, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw ) {
     Vector3d nw = plk_w.head(3);
     Vector3d vw = plk_w.tail(3);
@@ -208,6 +228,9 @@ Vector6d plk_to_pose( Vector6d plk_w, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw )
     return plk_c;
 }
 
+/**
+ * @return 世界坐标系下的plk坐标
+*/
 Vector6d plk_from_pose( Vector6d plk_c, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw ) {
 
     Eigen::Matrix3d Rwc = Rcw.transpose();

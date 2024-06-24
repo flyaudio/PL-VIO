@@ -123,6 +123,7 @@ public:
 
     int endFrame();
 };
+
 class FeatureManager
 {
   public:

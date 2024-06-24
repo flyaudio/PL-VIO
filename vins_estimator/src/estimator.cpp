@@ -687,8 +687,8 @@ void Estimator::solveOdometry()
 
         // optimization();
 
-        onlyLineOpt();   // 三角化以后，优化一把
-        optimizationwithLine();
+        onlyLineOpt();//固定pose,只优化line
+        optimizationwithLine();//优化pose、imu、feature(points and lines)
 
 #ifdef LINEINCAM
         LineBAincamera();
@@ -984,23 +984,20 @@ void  Estimator::onlyLineOpt()
     ceres::Problem problem;
     ceres::LossFunction *loss_function;
     loss_function = new ceres::CauchyLoss(1.0);
-    for (int i = 0; i < WINDOW_SIZE + 1; i++)    // 将窗口内的 p,q 加入优化变量
+    for (int i = 0; i < WINDOW_SIZE + 1; i++) // 将窗口内的 p,q 加入优化变量
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
         problem.AddParameterBlock(para_Pose[i], SIZE_POSE, local_parameterization);  // p,q
-        // 固定 pose
-        problem.SetParameterBlockConstant(para_Pose[i]);
+        problem.SetParameterBlockConstant(para_Pose[i]);// 固定 pose
     }
-    for (int i = 0; i < NUM_OF_CAM; i++)         // 外参数
+    for (int i = 0; i < NUM_OF_CAM; i++) //外参数
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
         problem.AddParameterBlock(para_Ex_Pose[i], SIZE_POSE, local_parameterization);
-
-        // 固定 外参数
-        problem.SetParameterBlockConstant(para_Ex_Pose[i]);
+        problem.SetParameterBlockConstant(para_Ex_Pose[i]);// 固定 外参数
 
     }
-    vector2double();// 将那些保存在 vector向量里的参数 移到 double指针数组里去
+    vector2double();// 将那些保存在vector向量里的参数 移到 double指针数组里去
 
     // 所有特征
     int f_m_cnt = 0;
@@ -1008,10 +1005,10 @@ void  Estimator::onlyLineOpt()
     for (auto &it_per_id : f_manager.linefeature)
     {
         it_per_id.used_num = it_per_id.linefeature_per_frame.size();                // 已经被多少帧观测到， 这个已经在三角化那个函数里说了
-        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2 && it_per_id.is_triangulation))  // 如果这个特征才被观测到，那就跳过。实际上这里为啥不直接用如果特征没有三角化这个条件。
+        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2 && it_per_id.is_triangulation))// if这个特征才被观测到，那就跳过。实际上这里为啥不直接用如果特征没有三角化这个条件。
             continue;
 
-        ++feature_index;            // 这个变量会记录feature在 para_Feature 里的位置， 将深度存入para_Feature时索引的记录也是用的这种方式
+        ++feature_index;  // 这个变量会记录feature在 para_Feature 里的位置， 将深度存入para_Feature时索引的记录也是用的这种方式
         /*
         std::cout << para_LineFeature[feature_index][0] <<" "
                 << para_LineFeature[feature_index][1] <<" "
@@ -1055,8 +1052,6 @@ void  Estimator::onlyLineOpt()
     //std::cout << summary.FullReport()<<std::endl;
 
     f_manager.removeLineOutlier(Ps,tic,ric);
-
-
 }
 
 
