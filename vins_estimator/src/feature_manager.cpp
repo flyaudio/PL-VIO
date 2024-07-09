@@ -516,7 +516,7 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
             continue;
 
         int imu_i = it_per_id.start_frame;//固定指向线特征的起始帧
-        imu_j = imu_i - 1;//非起始帧的每一个观测
+        int imu_j = imu_i - 1;//非起始帧的每一个观测
 
         ROS_ASSERT(NUM_OF_CAM == 1);
 
