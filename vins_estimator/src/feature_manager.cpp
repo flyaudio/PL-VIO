@@ -116,10 +116,9 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
 
         int feature_id = id_pts.first;
         //std::cout<<"id: " << feature_id<<"\n";
-        auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
-        {
-            return it.feature_id == feature_id;    // 在feature里找id号为feature_id的特征
-        });
+        auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it) {
+                                                                return it.feature_id == feature_id;    // 在feature里找id号为feature_id的特征
+                                                            });
 
         if (it == feature.end())  // 如果之前没存这个特征，说明是新的
         {

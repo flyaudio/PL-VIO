@@ -136,14 +136,17 @@ Vector6d orth_to_plk(Vector4d orth)
 Vector4d pi_from_ppp(Vector3d x1, Vector3d x2, Vector3d x3) {
     Vector4d pi;
     pi << ( x1 - x3 ).cross( x2 - x3 ), - x3.dot( x1.cross( x2 ) ); // d = - x3.dot( (x1-x3).cross( x2-x3 ) ) = - x3.dot( x1.cross( x2 ) )
-
     return pi;
+    // Vector3d n = (x1 - x3).cross(x2 - x3);//这样才对吧??
+    // d = -x3.dot(n);
+    // pi << n, d;
 }
 
-// 两平面相交得到直线的plucker 坐标
+
 /**
+ * @brief 两平面相交得到直线的plucker坐标
  * 其对应的是论文中普朗克坐标的计算方法，论文中用的表述方法是利用两个平面方程的向量形式叉乘从而得到一个矩阵，从矩阵中可以拆分出普朗克坐标需要的n和d
- * @param pi1,平面方程的向量形式
+ * @param pi1,平面方程的向量形式:ax+by+cz+d = 0
  * @param pi2,平面方程的向量形式
  * @return pluker
 */
@@ -151,7 +154,7 @@ Vector6d pipi_plk( Vector4d pi1, Vector4d pi2){
     Vector6d plk;
     Matrix4d dp = pi1 * pi2.transpose() - pi2 * pi1.transpose();
 
-    plk << dp(0,3), dp(1,3), dp(2,3), - dp(1,2), dp(0,2), - dp(0,1);
+    plk << dp(0,3), dp(1,3), dp(2,3), - dp(1,2), dp(0,2), - dp(0,1);//n + d
     return plk;
 }
 
@@ -189,13 +192,13 @@ Vector3d poit_from_pose( Eigen::Matrix3d Rcw, Eigen::Vector3d tcw, Vector3d pt_c
 
 /**
  * 将空间直线的参数进行两个坐标系下的转换，其中线参数前3维是光心到直线的垂直点
-*/
+ */
 Vector6d line_to_pose(Vector6d line_w, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw) {
     Vector6d line_c;
 
     Vector3d cp_w, dv_w;
-    cp_w = line_w.head(3);
-    dv_w = line_w.tail(3);
+    cp_w = line_w.head(3);//前三维是一个三维点(在直线上)
+    dv_w = line_w.tail(3);//后三维是沿着直线的方向向量
 
     Vector3d cp_c = point_to_pose( Rcw, tcw, cp_w );
     Vector3d dv_c = Rcw* dv_w;

@@ -1,5 +1,122 @@
 #include "linefeature_tracker.h"
+void visualize_line_match(cv::Mat imageMat1, cv::Mat imageMat2,
+                          std::vector<KeyLine> octave0_1, std::vector<KeyLine>octave0_2,
+                          std::vector<DMatch> good_matches)
+{
+    //	Mat img_1;
+    cv::Mat img1,img2;
+    if (imageMat1.channels() != 3){
+        cv::cvtColor(imageMat1, img1, cv::COLOR_GRAY2BGR);
+    }
+    else{
+        img1 = imageMat1;
+    }
 
+    if (imageMat2.channels() != 3){
+        cv::cvtColor(imageMat2, img2, cv::COLOR_GRAY2BGR);
+    }
+    else{
+        img2 = imageMat2;
+    }
+
+
+    //    srand(time(NULL));
+    int lowest = 0, highest = 255;
+    int range = (highest - lowest) + 1;
+    for (int k = 0; k < good_matches.size(); ++k) {
+        DMatch mt = good_matches[k];
+
+        KeyLine line1 = octave0_1[mt.queryIdx];  // trainIdx
+        KeyLine line2 = octave0_2[mt.trainIdx];  //queryIdx
+
+
+        unsigned int r = lowest + int(rand() % range);
+        unsigned int g = lowest + int(rand() % range);
+        unsigned int b = lowest + int(rand() % range);
+        cv::Point startPoint = cv::Point(int(line1.startPointX), int(line1.startPointY));
+        cv::Point endPoint = cv::Point(int(line1.endPointX), int(line1.endPointY));
+        cv::line(img1, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
+
+        cv::Point startPoint2 = cv::Point(int(line2.startPointX), int(line2.startPointY));
+        cv::Point endPoint2 = cv::Point(int(line2.endPointX), int(line2.endPointY));
+        cv::line(img2, startPoint2, endPoint2, cv::Scalar(r, g, b),2, 8);
+        cv::line(img2, startPoint, startPoint2, cv::Scalar(0, 0, 255),1, 8);
+        cv::line(img2, endPoint, endPoint2, cv::Scalar(0, 0, 255),1, 8);
+
+    }
+    /* plot matches */
+    /*
+    cv::Mat lsd_outImg;
+    std::vector<char> lsd_mask( lsd_matches.size(), 1 );
+    drawLineMatches( imageMat1, octave0_1, imageMat2, octave0_2, good_matches, lsd_outImg, Scalar::all( -1 ), Scalar::all( -1 ), lsd_mask,
+    DrawLinesMatchesFlags::DEFAULT );
+
+    imshow( "LSD matches", lsd_outImg );
+    */
+    cv::imshow("LSD matches1", img1);
+    cv::imshow("LSD matches2", img2);
+    cv::waitKey(1);
+}
+
+void visualize_line_match(cv::Mat imageMat1, cv::Mat imageMat2,
+                          std::vector<KeyLine> octave0_1, std::vector<KeyLine>octave0_2,
+                          std::vector<bool> good_matches)
+{
+    //	Mat img_1;
+    cv::Mat img1,img2;
+    if (imageMat1.channels() != 3){
+        cv::cvtColor(imageMat1, img1, cv::COLOR_GRAY2BGR);
+    }
+    else{
+        img1 = imageMat1;
+    }
+
+    if (imageMat2.channels() != 3){
+        cv::cvtColor(imageMat2, img2, cv::COLOR_GRAY2BGR);
+    }
+    else{
+        img2 = imageMat2;
+    }
+
+    //    srand(time(NULL));
+    int lowest = 0, highest = 255;
+    int range = (highest - lowest) + 1;
+    for (int k = 0; k < good_matches.size(); ++k) {
+
+        if(!good_matches[k]) continue;
+
+        KeyLine line1 = octave0_1[k];  // trainIdx
+        KeyLine line2 = octave0_2[k];  //queryIdx
+
+        unsigned int r = lowest + int(rand() % range);
+        unsigned int g = lowest + int(rand() % range);
+        unsigned int b = lowest + int(rand() % range);
+        cv::Point startPoint = cv::Point(int(line1.startPointX), int(line1.startPointY));
+        cv::Point endPoint = cv::Point(int(line1.endPointX), int(line1.endPointY));
+        cv::line(img1, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
+
+        cv::Point startPoint2 = cv::Point(int(line2.startPointX), int(line2.startPointY));
+        cv::Point endPoint2 = cv::Point(int(line2.endPointX), int(line2.endPointY));
+        cv::line(img2, startPoint2, endPoint2, cv::Scalar(r, g, b),2, 8);
+        cv::line(img2, startPoint, startPoint2, cv::Scalar(0, 0, 255),1, 8);
+        cv::line(img2, endPoint, endPoint2, cv::Scalar(0, 0, 255),1, 8);
+
+    }
+    /* plot matches */
+    /*
+    cv::Mat lsd_outImg;
+    std::vector<char> lsd_mask( lsd_matches.size(), 1 );
+    drawLineMatches( imageMat1, octave0_1, imageMat2, octave0_2, good_matches, lsd_outImg, Scalar::all( -1 ), Scalar::all( -1 ), lsd_mask,
+    DrawLinesMatchesFlags::DEFAULT );
+
+    imshow( "LSD matches", lsd_outImg );
+    */
+    cv::imshow("LSD matches1", img1);
+    cv::imshow("LSD matches2", img2);
+    cv::waitKey(1);
+}
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
 
 LineFeatureTracker::LineFeatureTracker()
 {
@@ -247,122 +364,6 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
 #endif
 
 #define MATCHES_DIST_THRESHOLD 30
-void visualize_line_match(Mat imageMat1, Mat imageMat2,
-                          std::vector<KeyLine> octave0_1, std::vector<KeyLine>octave0_2,
-                          std::vector<DMatch> good_matches)
-{
-    //	Mat img_1;
-    cv::Mat img1,img2;
-    if (imageMat1.channels() != 3){
-        cv::cvtColor(imageMat1, img1, cv::COLOR_GRAY2BGR);
-    }
-    else{
-        img1 = imageMat1;
-    }
-
-    if (imageMat2.channels() != 3){
-        cv::cvtColor(imageMat2, img2, cv::COLOR_GRAY2BGR);
-    }
-    else{
-        img2 = imageMat2;
-    }
-
-
-    //    srand(time(NULL));
-    int lowest = 0, highest = 255;
-    int range = (highest - lowest) + 1;
-    for (int k = 0; k < good_matches.size(); ++k) {
-        DMatch mt = good_matches[k];
-
-        KeyLine line1 = octave0_1[mt.queryIdx];  // trainIdx
-        KeyLine line2 = octave0_2[mt.trainIdx];  //queryIdx
-
-
-        unsigned int r = lowest + int(rand() % range);
-        unsigned int g = lowest + int(rand() % range);
-        unsigned int b = lowest + int(rand() % range);
-        cv::Point startPoint = cv::Point(int(line1.startPointX), int(line1.startPointY));
-        cv::Point endPoint = cv::Point(int(line1.endPointX), int(line1.endPointY));
-        cv::line(img1, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
-
-        cv::Point startPoint2 = cv::Point(int(line2.startPointX), int(line2.startPointY));
-        cv::Point endPoint2 = cv::Point(int(line2.endPointX), int(line2.endPointY));
-        cv::line(img2, startPoint2, endPoint2, cv::Scalar(r, g, b),2, 8);
-        cv::line(img2, startPoint, startPoint2, cv::Scalar(0, 0, 255),1, 8);
-        cv::line(img2, endPoint, endPoint2, cv::Scalar(0, 0, 255),1, 8);
-
-    }
-    /* plot matches */
-    /*
-    cv::Mat lsd_outImg;
-    std::vector<char> lsd_mask( lsd_matches.size(), 1 );
-    drawLineMatches( imageMat1, octave0_1, imageMat2, octave0_2, good_matches, lsd_outImg, Scalar::all( -1 ), Scalar::all( -1 ), lsd_mask,
-    DrawLinesMatchesFlags::DEFAULT );
-
-    imshow( "LSD matches", lsd_outImg );
-    */
-    imshow("LSD matches1", img1);
-    imshow("LSD matches2", img2);
-    waitKey(1);
-}
-
-void visualize_line_match(Mat imageMat1, Mat imageMat2,
-                          std::vector<KeyLine> octave0_1, std::vector<KeyLine>octave0_2,
-                          std::vector<bool> good_matches)
-{
-    //	Mat img_1;
-    cv::Mat img1,img2;
-    if (imageMat1.channels() != 3){
-        cv::cvtColor(imageMat1, img1, cv::COLOR_GRAY2BGR);
-    }
-    else{
-        img1 = imageMat1;
-    }
-
-    if (imageMat2.channels() != 3){
-        cv::cvtColor(imageMat2, img2, cv::COLOR_GRAY2BGR);
-    }
-    else{
-        img2 = imageMat2;
-    }
-
-    //    srand(time(NULL));
-    int lowest = 0, highest = 255;
-    int range = (highest - lowest) + 1;
-    for (int k = 0; k < good_matches.size(); ++k) {
-
-        if(!good_matches[k]) continue;
-
-        KeyLine line1 = octave0_1[k];  // trainIdx
-        KeyLine line2 = octave0_2[k];  //queryIdx
-
-        unsigned int r = lowest + int(rand() % range);
-        unsigned int g = lowest + int(rand() % range);
-        unsigned int b = lowest + int(rand() % range);
-        cv::Point startPoint = cv::Point(int(line1.startPointX), int(line1.startPointY));
-        cv::Point endPoint = cv::Point(int(line1.endPointX), int(line1.endPointY));
-        cv::line(img1, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
-
-        cv::Point startPoint2 = cv::Point(int(line2.startPointX), int(line2.startPointY));
-        cv::Point endPoint2 = cv::Point(int(line2.endPointX), int(line2.endPointY));
-        cv::line(img2, startPoint2, endPoint2, cv::Scalar(r, g, b),2, 8);
-        cv::line(img2, startPoint, startPoint2, cv::Scalar(0, 0, 255),1, 8);
-        cv::line(img2, endPoint, endPoint2, cv::Scalar(0, 0, 255),1, 8);
-
-    }
-    /* plot matches */
-    /*
-    cv::Mat lsd_outImg;
-    std::vector<char> lsd_mask( lsd_matches.size(), 1 );
-    drawLineMatches( imageMat1, octave0_1, imageMat2, octave0_2, good_matches, lsd_outImg, Scalar::all( -1 ), Scalar::all( -1 ), lsd_mask,
-    DrawLinesMatchesFlags::DEFAULT );
-
-    imshow( "LSD matches", lsd_outImg );
-    */
-    imshow("LSD matches1", img1);
-    imshow("LSD matches2", img2);
-    waitKey(1);
-}
 
 /**
  * 1.undistort image
@@ -375,12 +376,8 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
     cv::Mat img;
     TicToc t_p;
     frame_cnt++;
-
     cv::remap(_img, img, undist_map1_, undist_map2_, CV_INTER_LINEAR);
 
-//    cv::imshow("lineimg",img);
-//    cv::waitKey(1);
-    //ROS_INFO("undistortImage costs: %fms", t_p.toc());
     if (EQUALIZE)   // 直方图均衡化
     {
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
@@ -408,28 +405,25 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
     Ptr<LSDDetector> lsd_;
     lsd_ = cv::line_descriptor::LSDDetector::createLSDDetector();
     lsd_->detect( img, lsd, 2, 2 );
-
     sum_time += t_li.toc();
-//    ROS_INFO("line detect costs: %fms", t_li.toc());
 
-    Mat lbd_descr, keylbd_descr;
     // step 2: lbd descriptor
+    cv::Mat lbd_descr, keylbd_descr;
     TicToc t_lbd;
     Ptr<BinaryDescriptor> bd_ = BinaryDescriptor::createBinaryDescriptor( );
     bd_->compute( img, lsd, lbd_descr );
 
-//////////////////////////
+    //筛选
     for ( int i = 0; i < (int) lsd.size(); i++ )
     {
-        if( lsd[i].octave == 0 && lsd[i].lineLength >= 30)//第一层提取到的且长度超过30个像素
+        if( lsd[i].octave == 0 && lsd[i].lineLength >= 30)//第一层提取到的 & 长度超过30个像素
         {
             keylsd.push_back( lsd[i] );
             keylbd_descr.push_back( lbd_descr.row( i ) );
         }
     }
-//    ROS_INFO("lbd_descr detect costs: %fms", keylsd.size() * t_lbd.toc() / lsd.size() );
     sum_time += keylsd.size() * t_lbd.toc() / lsd.size();
-///////////////
+
 
     forwframe_->keylsd = keylsd;
     forwframe_->lbd_descr = keylbd_descr;
@@ -451,7 +445,6 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
         Ptr<BinaryDescriptorMatcher> bdm_;
         bdm_ = BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
         bdm_->match(forwframe_->lbd_descr, curframe_->lbd_descr, lsd_matches);
-//        ROS_INFO("lbd_macht costs: %fms", t_match.toc());
         sum_time += t_match.toc();
         mean_time = sum_time/frame_cnt;
         ROS_INFO("line feature tracker mean costs: %fms", mean_time);
@@ -462,7 +455,7 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
         good_matches.clear();
         for ( int i = 0; i < (int) lsd_matches.size(); i++ )
         {
-            if( lsd_matches[i].distance < MATCHES_DIST_THRESHOLD ){
+            if( lsd_matches[i].distance < MATCHES_DIST_THRESHOLD ) {//descriptor distance
 
                 DMatch mt = lsd_matches[i];
                 KeyLine line1 =  forwframe_->keylsd[mt.queryIdx] ;
@@ -475,12 +468,13 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
 
         }
 
-        std::cout << forwframe_->lineID.size() <<" " <<curframe_->lineID.size();
+        // std::cout << forwframe_->lineID.size() << " " << curframe_->lineID.size();
         for (int k = 0; k < good_matches.size(); ++k) {
             DMatch mt = good_matches[k];
             forwframe_->lineID[mt.queryIdx] = curframe_->lineID[mt.trainIdx];
 
         }
+        //show 2 frame match
         visualize_line_match(forwframe_->img.clone(), curframe_->img.clone(), forwframe_->keylsd, curframe_->keylsd, good_matches);
 
         vector<KeyLine> vecLine_tracked, vecLine_new;
@@ -492,13 +486,13 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
         {
             if( forwframe_->lineID[i] == -1)
             {
-                forwframe_->lineID[i] = allfeature_cnt++;
+                forwframe_->lineID[i] = allfeature_cnt++;//2-frame match失败的，给新的id
                 vecLine_new.push_back(forwframe_->keylsd[i]);
                 lineID_new.push_back(forwframe_->lineID[i]);
                 Descr_new.push_back( forwframe_->lbd_descr.row( i ) );
             }
             else
-            {
+            {//已跟踪上的线
                 vecLine_tracked.push_back(forwframe_->keylsd[i]);
                 lineID_tracked.push_back(forwframe_->lineID[i]);
                 DEscr_tracked.push_back( forwframe_->lbd_descr.row( i ) );
@@ -532,6 +526,4 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
         forwframe_->vecLine.push_back(l);
     }
     curframe_ = forwframe_;
-
-
 }

@@ -116,6 +116,7 @@ void update()
 
 }
 
+//<imu, <feature, linefeature>>
 std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
         std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> >>
 getMeasurements()
@@ -126,16 +127,14 @@ getMeasurements()
     while (true)
     {
         if (imu_buf.empty() || feature_buf.empty() || linefeature_buf.empty())
-            return measurements;
+            return measurements;//return empty
 
         std::cout<<"-------------------------------------\n";
-//        std::cout << imu_buf.front()->header.stamp.toSec() << " " << imu_buf.back()->header.stamp.toSec()<<" "<<imu_buf.size() << "\n";
-//        std::cout << feature_buf.front()->header.stamp.toSec() << " " << feature_buf.back()->header.stamp.toSec() << "\n";
         if (!(imu_buf.back()->header.stamp > feature_buf.front()->header.stamp)) //如果imu最新数据的时间戳不大于最旧图像的时间戳，那得等imu数据
         {
             ROS_WARN("wait for imu, only should happen at the beginning");
             sum_of_wait++;
-            return measurements;
+            return measurements;//return empty
         }
 
         if (!(imu_buf.front()->header.stamp < feature_buf.front()->header.stamp)) // 如果imu最老的数据时间戳不小于最旧图像的时间，那得把最老的图像丢弃
@@ -236,7 +235,7 @@ void process()
 {
     while (true)
     {
-        //std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
+        //<imu, [point, line]>
         std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
                 std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> >> measurements;
         std::unique_lock<std::mutex> lk(m_buf);
@@ -248,14 +247,16 @@ void process()
 
         for (auto &measurement : measurements)
         {
-            for (auto &imu_msg : measurement.first)
-                send_imu(imu_msg);                     // 处理imu数据, 预测 pose
-
+            // 处理imu数据, 预测 pose
+            for (auto &imu_msg : measurement.first) {
+                send_imu(imu_msg);                     
+            }
             auto point_and_line_msg = measurement.second;
             auto img_msg = point_and_line_msg.first;
             auto line_msg = point_and_line_msg.second;
             ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
 
+            //handle point feature
             TicToc t_s;
             map<int, vector<pair<int, Vector3d>>> image;
             for (unsigned int i = 0; i < img_msg->points.size(); i++)
@@ -269,21 +270,24 @@ void process()
                 ROS_ASSERT(z == 1);
                 image[feature_id].emplace_back(camera_id, Vector3d(x, y, z));
             }
+            
+            //handle line feature
             map<int, vector<pair<int, Vector4d>>> lines;
             for (unsigned int i = 0; i < line_msg->points.size(); i++)
             {
                 int v = line_msg->channels[0].values[i] + 0.5;
-                //std::cout<< "receive id: " << v / NUM_OF_CAM << "\n";
                 int feature_id = v / NUM_OF_CAM;
                 int camera_id = v % NUM_OF_CAM;        // 被几号相机观测到的，如果是单目，camera_id = 0
                 double x_startpoint = line_msg->points[i].x;
                 double y_startpoint = line_msg->points[i].y;
                 double x_endpoint = line_msg->channels[1].values[i];
                 double y_endpoint = line_msg->channels[2].values[i];
-//                ROS_ASSERT(z == 1);
+                ROS_ASSERT(z == 1);
                 lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));
             }
-            estimator.processImage(image,lines, img_msg->header);   // 处理image数据，这时候的image已经是特征点数据，不是原始图像了。
+
+            // 处理image数据，这时候的image已经是特征点数据，不是原始图像了。
+            estimator.processImage(image, lines, img_msg->header);   
   
             double whole_t = t_s.toc();
             printStatistics(estimator, whole_t);

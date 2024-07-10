@@ -63,7 +63,7 @@ void printStatistics(const Estimator &estimator, double t)
     if (estimator.solver_flag != Estimator::SolverFlag::NON_LINEAR)
         return;
     ROS_INFO_STREAM("position: " << estimator.Ps[WINDOW_SIZE].transpose());
-    ROS_DEBUG_STREAM("orientation: " << estimator.Vs[WINDOW_SIZE].transpose());
+    ROS_INFO_STREAM("orientation: " << estimator.Vs[WINDOW_SIZE].transpose());
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         //ROS_DEBUG("calibration result for camera %d", i);
@@ -331,8 +331,8 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
     //static int key_poses_id = 0;
     lines.id = 0; //key_poses_id++;
     lines.scale.x = 0.03;
-    lines.scale.y = 0.03;
-    lines.scale.z = 0.03;
+    // lines.scale.y = 0.03;    scale.y and scale.z of LINE_LIST or LINE_STRIP are ignored
+    // lines.scale.z = 0.03;
     lines.color.b = 1.0;
     lines.color.a = 1.0;
 
@@ -427,8 +427,9 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
         lines.points.push_back(p);
 
     }
-    //std::cout<<" viewer lines.size: " <<lines.points.size() << std::endl;
-    pub_lines.publish(lines);
+    if(!lines.points.empty()) { //Points should not be empty for specified marker type.
+        pub_lines.publish(lines);
+    }
 
 
 //    visualization_msgs::Marker marg_lines_cloud_oneframe; // 最近一段时间的
@@ -477,7 +478,6 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
             && it_per_id.is_triangulation == true )
         {
             int imu_i = it_per_id.start_frame;
-
             Vector3d pc, nc, vc;
             // pc = it_per_id.line_plucker.head(3);
             // nc = pc.cross(vc);
@@ -566,8 +566,9 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
 //              << pt2.z << "\n";
 //    }
 //    foutC.close();
-    pub_marg_lines.publish(marg_lines_cloud);
-
+    if(!marg_lines_cloud.points.empty()) {
+        pub_marg_lines.publish(marg_lines_cloud);
+    }
 }
 
 

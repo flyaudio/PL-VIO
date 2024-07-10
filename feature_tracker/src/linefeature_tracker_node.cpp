@@ -25,6 +25,13 @@ bool first_image_flag = true;
 double frame_cnt = 0;
 double sum_time = 0.0;
 double mean_time = 0.0;
+
+/*
+ * points: sp的齐次坐标
+ * channel: id
+ * channel: ep.x
+ * channel: ep.y
+*/
 void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
 {
     if(first_image_flag)
@@ -122,11 +129,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);
 
     pub_img = n.advertise<sensor_msgs::PointCloud>("linefeature", 1000);
-    pub_match = n.advertise<sensor_msgs::Image>("linefeature_img",1000);
-    /*
-    if (SHOW_TRACK)
-        cv::namedWindow("vis", cv::WINDOW_NORMAL);
-    */
+    // pub_match = n.advertise<sensor_msgs::Image>("linefeature_img",1000);//not in use
     ros::spin();
     return 0;
 }

@@ -42,7 +42,7 @@ class FeaturePerId
     
     //  feature_per_frame 是个向量容器，存着这个特征在每一帧上的观测量。 
     //                    如：feature_per_frame[0]，存的是ft在start_frame上的观测值; feature_per_frame[1]存的是start_frame+1上的观测
-    vector<FeaturePerFrame> feature_per_frame;
+    std::vector<FeaturePerFrame> feature_per_frame;
 
     int used_num;
     bool is_outlier;
