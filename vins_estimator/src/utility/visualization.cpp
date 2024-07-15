@@ -266,8 +266,6 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header, E
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
             continue;
 
-        //std::cout<< "used num: " <<used_num<<" point id: "<<it_per_id.feature_id<<std::endl;
-
         int imu_i = it_per_id.start_frame;
         Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
         Vector3d w_pts_i = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0])
@@ -315,9 +313,9 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header, E
 }
 
 visualization_msgs::Marker marg_lines_cloud;  // 全局变量用来保存所有的线段
-std::list<visualization_msgs::Marker> marg_lines_cloud_last10frame;
-void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
-                   Eigen::Matrix3d loop_correct_r)
+// std::list<visualization_msgs::Marker> marg_lines_cloud_last10frame;
+void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, const Eigen::Vector3d& loop_correct_t,
+                   const Eigen::Matrix3d& loop_correct_r)
 {
     visualization_msgs::Marker lines;
     lines.header = header;
@@ -328,125 +326,62 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
     lines.pose.orientation.w = 1.0;
     lines.lifetime = ros::Duration();
 
-    //static int key_poses_id = 0;
-    lines.id = 0; //key_poses_id++;
-    lines.scale.x = 0.03;
-    // lines.scale.y = 0.03;    scale.y and scale.z of LINE_LIST or LINE_STRIP are ignored
-    // lines.scale.z = 0.03;
+    lines.id = 0;
+    lines.scale.x = 0.03;//scale.y and scale.z of LINE_LIST or LINE_STRIP are ignored
     lines.color.b = 1.0;
     lines.color.a = 1.0;
 
-    for (auto &it_per_id : estimator.f_manager.linefeature)
-    {
-//        int used_num;
-//        used_num = it_per_id.linefeature_per_frame.size();
-//
-//        if (!(used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2))
-//            continue;
-//        //if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
+    for (auto &it_per_id : estimator.f_manager.linefeature) {
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.is_triangulation == false)
             continue;
 
-        //std::cout<< "used num: " <<used_num<<" line id: "<<it_per_id.feature_id<<std::endl;
-
         int imu_i = it_per_id.start_frame;
 
-        Vector3d pc, nc, vc;
-        // pc = it_per_id.line_plucker.head(3);
-        // nc = pc.cross(vc);
-        nc = it_per_id.line_plucker.head(3);
-        vc = it_per_id.line_plucker.tail(3);
+        Vector3d nc = it_per_id.line_plucker.head(3);
+        Vector3d vc = it_per_id.line_plucker.tail(3);
         Matrix4d Lc;
         Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
 
         Vector4d obs = it_per_id.linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-        Vector3d p11 = Vector3d(obs(0), obs(1), 1.0);
-        Vector3d p21 = Vector3d(obs(2), obs(3), 1.0);
-        Vector2d ln = ( p11.cross(p21) ).head(2);     // 直线的垂直方向
+        Vector3d sp = Vector3d(obs(0), obs(1), 1.0);//图像坐标系下的两个端点的齐次坐标
+        Vector3d ep = Vector3d(obs(2), obs(3), 1.0);
+        Vector2d ln = ( sp.cross(ep) ).head(2);     // 直线的垂直方向//叉积的结果是一个向量，该向量垂直于由 p11 和 p21 定义的直线
         ln = ln / ln.norm();
 
-        Vector3d p12 = Vector3d(p11(0) + ln(0), p11(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
-        Vector3d p22 = Vector3d(p21(0) + ln(0), p21(1) + ln(1), 1.0);
+        Vector3d spShift = Vector3d(sp(0) + ln(0), sp(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
+        Vector3d epShift = Vector3d(ep(0) + ln(0), ep(1) + ln(1), 1.0);
         Vector3d cam = Vector3d( 0, 0, 0 );
 
-        Vector4d pi1 = pi_from_ppp(cam, p11, p12);
-        Vector4d pi2 = pi_from_ppp(cam, p21, p22);
+        Vector4d pi_sp = pi_from_ppp(cam, sp, spShift);
+        Vector4d pi_ep = pi_from_ppp(cam, ep, epShift);
 
-        Vector4d e1 = Lc * pi1;
-        Vector4d e2 = Lc * pi2;
-        e1 = e1/e1(3);
+        Vector4d e1 = Lc * pi_sp;//intersection between plucker-line * plane
+        Vector4d e2 = Lc * pi_ep;
+        e1 = e1/e1(3);//homogeneous coordinates -> 3d point
         e2 = e2/e2(3);
 
-//
-//        if(e1.norm() > 10 || e2.norm() > 10 || e1.norm() < 0.00001 || e2.norm() < 0.00001)
-//            continue;
+        Vector3d camPts_1(e1(0),e1(1),e1(2));
+        Vector3d camPts_2(e2(0),e2(1),e2(2));
 
-        //std::cout <<"visual: "<< it_per_id.feature_id <<" " << it_per_id.line_plucker <<"\n\n";
-        Vector3d pts_1(e1(0),e1(1),e1(2));
-        Vector3d pts_2(e2(0),e2(1),e2(2));
-
-        Vector3d w_pts_1 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * pts_1 + estimator.tic[0])
+        Vector3d worldPts_1 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * camPts_1 + estimator.tic[0])
                            + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
-        Vector3d w_pts_2 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * pts_2 + estimator.tic[0])
+        Vector3d worldPts_2 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * camPts_2 + estimator.tic[0])
                            + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
 
-
-/*
-        Vector3d diff_1 = it_per_id.ptw1 - w_pts_1;
-        Vector3d diff_2 = it_per_id.ptw2 - w_pts_2;
-        if(diff_1.norm() > 1 || diff_2.norm() > 1)
-        {
-            std::cout <<"visual: "<<it_per_id.removed_cnt<<" "<<it_per_id.all_obs_cnt<<" " << it_per_id.feature_id <<"\n";// << it_per_id.line_plucker <<"\n\n" << it_per_id.line_plk_init <<"\n\n";
-            std::cout << it_per_id.Rj_ <<"\n" << it_per_id.tj_ <<"\n\n";
-            std::cout << estimator.Rs[imu_i] <<"\n" << estimator.Ps[imu_i] <<"\n\n";
-            std::cout << obs <<"\n\n" << it_per_id.obs_j<<"\n\n";
-
-        }
-
-        w_pts_1 = it_per_id.ptw1;
-        w_pts_2 = it_per_id.ptw2;
-*/
-/*
-        Vector3d w_pts_1 =  estimator.Rs[imu_i] * (estimator.ric[0] * pts_1 + estimator.tic[0])
-                           + estimator.Ps[imu_i];
-        Vector3d w_pts_2 = estimator.Rs[imu_i] * (estimator.ric[0] * pts_2 + estimator.tic[0])
-                           + estimator.Ps[imu_i];
-
-        Vector3d d = w_pts_1 - w_pts_2;
-        if(d.norm() > 4.0 || d.norm() < 2.0)
-            continue;
-*/
         geometry_msgs::Point p;
-        p.x = w_pts_1(0);
-        p.y = w_pts_1(1);
-        p.z = w_pts_1(2);
-        lines.points.push_back(p);
-        p.x = w_pts_2(0);
-        p.y = w_pts_2(1);
-        p.z = w_pts_2(2);
-        lines.points.push_back(p);
-
+        p.x = worldPts_1(0);
+        p.y = worldPts_1(1);
+        p.z = worldPts_1(2);
+        lines.points.emplace_back(p);
+        p.x = worldPts_2(0);
+        p.y = worldPts_2(1);
+        p.z = worldPts_2(2);
+        lines.points.emplace_back(p);
     }
     if(!lines.points.empty()) { //Points should not be empty for specified marker type.
         pub_lines.publish(lines);
     }
 
-
-//    visualization_msgs::Marker marg_lines_cloud_oneframe; // 最近一段时间的
-//    marg_lines_cloud_oneframe.header = header;
-//    marg_lines_cloud_oneframe.header.frame_id = "world";
-//    marg_lines_cloud_oneframe.ns = "lines";
-//    marg_lines_cloud_oneframe.type = visualization_msgs::Marker::LINE_LIST;
-//    marg_lines_cloud_oneframe.action = visualization_msgs::Marker::ADD;
-//    marg_lines_cloud_oneframe.pose.orientation.w = 1.0;
-//    marg_lines_cloud_oneframe.lifetime = ros::Duration();
-//
-//    //marg_lines_cloud.id = 0; //key_poses_id++;
-//    marg_lines_cloud_oneframe.scale.x = 0.05;
-//    marg_lines_cloud_oneframe.scale.y = 0.05;
-//    marg_lines_cloud_oneframe.scale.z = 0.05;
-//    marg_lines_cloud_oneframe.color.g = 1.0;
-//    marg_lines_cloud_oneframe.color.a = 1.0;
 
 //////////////////////////////////////////////
     // all marglization line
@@ -457,16 +392,10 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
     marg_lines_cloud.action = visualization_msgs::Marker::ADD;
     marg_lines_cloud.pose.orientation.w = 1.0;
     marg_lines_cloud.lifetime = ros::Duration();
-
-    //static int key_poses_id = 0;
-    //marg_lines_cloud.id = 0; //key_poses_id++;
     marg_lines_cloud.scale.x = 0.05;
-    marg_lines_cloud.scale.y = 0.05;
-    marg_lines_cloud.scale.z = 0.05;
     marg_lines_cloud.color.r = 1.0;
     marg_lines_cloud.color.a = 1.0;
-    for (auto &it_per_id : estimator.f_manager.linefeature)
-    {
+    for (auto &it_per_id : estimator.f_manager.linefeature) {
 //        int used_num;
 //        used_num = it_per_id.linefeature_per_frame.size();
 //        if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
@@ -475,14 +404,10 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
 //        //        continue;
 
         if (it_per_id.start_frame == 0 && it_per_id.linefeature_per_frame.size() <= 2
-            && it_per_id.is_triangulation == true )
-        {
+            && it_per_id.is_triangulation == true ) {
             int imu_i = it_per_id.start_frame;
-            Vector3d pc, nc, vc;
-            // pc = it_per_id.line_plucker.head(3);
-            // nc = pc.cross(vc);
-            nc = it_per_id.line_plucker.head(3);
-            vc = it_per_id.line_plucker.tail(3);
+            Vector3d nc = it_per_id.line_plucker.head(3);
+            Vector3d vc = it_per_id.line_plucker.tail(3);
             Matrix4d Lc;
             Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
 
@@ -508,9 +433,10 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
 //                continue;
 //
             double length = (e1-e2).norm();
-            if(length > 10) continue;
+            if(length > 10) {
+                continue;
+            }
 
-            //std::cout << e1 <<"\n\n";
             Vector3d pts_1(e1(0),e1(1),e1(2));
             Vector3d pts_2(e2(0),e2(1),e2(2));
 
@@ -519,53 +445,17 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, E
             Vector3d w_pts_2 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * pts_2 + estimator.tic[0])
                                + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
 
-            //w_pts_1 = it_per_id.ptw1;
-            //w_pts_2 = it_per_id.ptw2;
-
             geometry_msgs::Point p;
             p.x = w_pts_1(0);
             p.y = w_pts_1(1);
             p.z = w_pts_1(2);
             marg_lines_cloud.points.push_back(p);
-//            marg_lines_cloud_oneframe.points.push_back(p);
             p.x = w_pts_2(0);
             p.y = w_pts_2(1);
             p.z = w_pts_2(2);
             marg_lines_cloud.points.push_back(p);
-//            marg_lines_cloud_oneframe.points.push_back(p);
         }
     }
-//    if(marg_lines_cloud_oneframe.points.size() > 0)
-//        marg_lines_cloud_last10frame.push_back(marg_lines_cloud_oneframe);
-//
-//    if(marg_lines_cloud_last10frame.size() > 50)
-//        marg_lines_cloud_last10frame.pop_front();
-//
-//    marg_lines_cloud.points.clear();
-//    list<visualization_msgs::Marker>::iterator itor;
-//    itor = marg_lines_cloud_last10frame.begin();
-//    while(itor != marg_lines_cloud_last10frame.end())
-//    {
-//        for (int i = 0; i < itor->points.size(); ++i) {
-//            marg_lines_cloud.points.push_back(itor->points.at(i));
-//        }
-//        itor++;
-//    }
-
-//    ofstream foutC("/home/hyj/catkin_ws/src/VINS-Mono/config/euroc/landmark.txt");
-//    for (int i = 0; i < marg_lines_cloud.points.size();) {
-//
-//        geometry_msgs::Point pt1 = marg_lines_cloud.points.at(i);
-//        geometry_msgs::Point pt2 = marg_lines_cloud.points.at(i+1);
-//        i = i + 2;
-//        foutC << pt1.x << " "
-//              << pt1.y << " "
-//              << pt1.z << " "
-//              << pt2.x << " "
-//              << pt2.y << " "
-//              << pt2.z << "\n";
-//    }
-//    foutC.close();
     if(!marg_lines_cloud.points.empty()) {
         pub_marg_lines.publish(marg_lines_cloud);
     }

@@ -135,11 +135,13 @@ Vector6d orth_to_plk(Vector4d orth)
  */
 Vector4d pi_from_ppp(Vector3d x1, Vector3d x2, Vector3d x3) {
     Vector4d pi;
-    pi << ( x1 - x3 ).cross( x2 - x3 ), - x3.dot( x1.cross( x2 ) ); // d = - x3.dot( (x1-x3).cross( x2-x3 ) ) = - x3.dot( x1.cross( x2 ) )
+    
+    // pi << ( x1 - x3 ).cross( x2 - x3 ), - x3.dot( x1.cross( x2 ) ); // d = - x3.dot( (x1-x3).cross( x2-x3 ) ) = - x3.dot( x1.cross( x2 ) )
+    
+    Vector3d n = (x1 - x3).cross(x2 - x3);//这样才对吧??
+    auto d = -x3.dot(n);
+    pi << n, d;
     return pi;
-    // Vector3d n = (x1 - x3).cross(x2 - x3);//这样才对吧??
-    // d = -x3.dot(n);
-    // pi << n, d;
 }
 
 

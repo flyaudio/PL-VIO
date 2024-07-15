@@ -3,7 +3,7 @@
 
 int lineFeaturePerId::endFrame()
 {
-    return start_frame + linefeature_per_frame.size() - 1;
+    return start_frame + linefeature_per_frame.size() - 1;//连续不间断的??
 }
 
 int FeaturePerId::endFrame()
@@ -47,8 +47,8 @@ int FeatureManager::getFeatureCount()
     return cnt;
 }
 
-//                                                                      featureId      cameraId, point
-bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Vector3d>>> &image)
+//                                                                featureId      vector[cameraId,  point]
+bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, std::vector<pair<int, Vector3d>>> &image)
 {
     ROS_DEBUG("input feature: %d", (int)image.size());
     ROS_DEBUG("num of feature: %d", getFeatureCount());  // 已有的特征数目
@@ -56,8 +56,8 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     int parallax_num = 0;
     last_track_num = 0;
     for (auto &id_pts : image)        //遍历当前帧上的特征
-    {
-        FeaturePerFrame f_per_fra(id_pts.second[0].second);  //
+    {                                    //camID0.points
+        FeaturePerFrame f_per_fra(id_pts.second[0].second);//
 
         int feature_id = id_pts.first;
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
@@ -101,7 +101,10 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
 }
-
+/**
+ * @return true:视差大;  false:视差小
+*/
+//                                                                featureId      vector[cameraId,  point]             featureID, vector<camID,    线段两端点>
 bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Vector3d>>> &image, const map<int, vector<pair<int, Vector4d>>> &lines)
 {
     ROS_DEBUG("input point feature: %d", (int)image.size());
@@ -112,15 +115,15 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     last_track_num = 0;
     for (auto &id_pts : image)        //遍历当前帧上的特征
     {
-        FeaturePerFrame f_per_fra(id_pts.second[0].second);  //
+        ROS_ASSERT(id_pts.second.size() == 1);
+        FeaturePerFrame f_per_fra(id_pts.second[0].second);//只用0索引的话,why用vector来装??
 
         int feature_id = id_pts.first;
-        //std::cout<<"id: " << feature_id<<"\n";
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it) {
                                                                 return it.feature_id == feature_id;    // 在feature里找id号为feature_id的特征
                                                             });
 
-        if (it == feature.end())  // 如果之前没存这个特征，说明是新的
+        if (it == feature.end())  // 之前没存这个特征,新的,新建
         {
             feature.push_back(FeaturePerId(feature_id, frame_count));
             feature.back().feature_per_frame.push_back(f_per_fra);
@@ -258,7 +261,9 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
 }
-
+/**
+ * not in use
+*/
 void FeatureManager::debugShow()
 {
     ROS_DEBUG("debug show");
@@ -504,10 +509,9 @@ double FeatureManager::reprojection_error( Vector4d obs, Matrix3d Rwc, Vector3d 
 */
 void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
 {
-    //std::cout<<"linefeature size: "<<linefeature.size()<<std::endl;
     for (auto &it_per_id : linefeature)//遍历每个特征,对新特征进行三角化
     {
-        it_per_id.used_num = it_per_id.linefeature_per_frame.size();    // 已经有多少帧看到了这个特征
+        it_per_id.used_num = it_per_id.linefeature_per_frame.size(); // 已经有多少帧看到了这个特征
         if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
             continue;
 
@@ -519,6 +523,7 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
 
         ROS_ASSERT(NUM_OF_CAM == 1);
 
+        // worldTcam-i = worldTimu-i * imuTcam
         Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];   // twc = Rwi * tic + twi//worldTimu * imuTcam = worldTcam_i
         Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];               // Rwc = Rwi * Ric
 
@@ -537,18 +542,18 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
             if(imu_j == imu_i)   // 第一个观测是start frame 上
             {
                 obsi = it_per_frame.lineobs;
-                Eigen::Vector3d p1( obsi(0), obsi(1), 1 );
-                Eigen::Vector3d p2( obsi(2), obsi(3), 1 );
+                Eigen::Vector3d p1( obsi(0), obsi(1), 1 );//sp of line
+                Eigen::Vector3d p2( obsi(2), obsi(3), 1 );//ep of line
                 pii = pi_from_ppp(p1, p2,Vector3d( 0, 0, 0 ));//线段的两个端点,相机光心,返回值是平面方程ax+by+cz+d=0中的4个参数
                 ni = pii.head(3); ni.normalize();
                 continue;
             }
 
             // 非start frame(其他帧)上的观测
-            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];//worldTimu * imuTcam = worldTcam_j
+            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];// worldTcam-j = worldTimu-j * imuTcam
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
 
-            Eigen::Vector3d t = R0.transpose() * (t1 - t0);   // tij//cam_iTworld * worldTcam_j = cam_iTcam_j
+            Eigen::Vector3d t = R0.transpose() * (t1 - t0);   // tij //cam-iTcam-j = cam-iTworld * worldTcam-j
             Eigen::Matrix3d R = R0.transpose() * R1;          // Rij
             
             Eigen::Vector4d obsj_tmp = it_per_frame.lineobs;
@@ -664,6 +669,134 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
             //std::cout << pij <<"\n\n";
 
         }
+    }
+//    removeLineOutlier(Ps,tic,ric);
+}
+
+
+void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
+{
+    for (auto& perIdFeatures : linefeature)//遍历每个特征,对新特征进行三角化
+    {
+        perIdFeatures.used_num = perIdFeatures.linefeature_per_frame.size(); // 已经有多少帧看到了这个特征
+        if (!(perIdFeatures.used_num >= LINE_MIN_OBS && perIdFeatures.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
+            continue;
+
+        if (perIdFeatures.is_triangulation) // 已经三角化了
+            continue;
+
+        int imu_i = perIdFeatures.start_frame;//固定指向线特征的起始帧
+        int imu_j = imu_i - 1;//非起始帧的每一个观测
+
+        ROS_ASSERT(NUM_OF_CAM == 1);
+
+        // worldTcam-i = worldTimu-i * imuTcam
+        Eigen::Vector3d world_t_cam_i = Ps[imu_i] + Rs[imu_i] * tic[0];   // twc = Rwi * tic + twi//worldTimu * imuTcam = worldTcam_i
+        Eigen::Matrix3d world_R_cam_i = Rs[imu_i] * ric[0];               // Rwc = Rwi * Ric
+
+        double farthestDistance = 0;
+        double min_cos_theta = 1.0;
+        Eigen::Vector3d tij;
+        Eigen::Matrix3d Rij;
+
+        // plane pi from ith obs in ith camera frame
+        Eigen::Vector4d pii; //plane pi on i-th frame
+        Eigen::Vector4d pij; //plane pi on j-th frame
+        for (auto& perFrameFeature : perIdFeatures.linefeature_per_frame)//遍历所有的观测,注意 start_frame 也会被遍历
+        {
+            imu_j++;
+
+            // 第一个观测是start frame 上
+            Eigen::Vector3d ni;  //normal vector on i-th frame
+            if(imu_j == imu_i) {
+                Eigen::Vector4d obsi = perFrameFeature.lineobs;
+                Eigen::Vector3d sp( obsi(0), obsi(1), 1 );//sp of line
+                Eigen::Vector3d ep( obsi(2), obsi(3), 1 );//ep of line
+                pii = pi_from_ppp(sp, ep, Vector3d(0, 0, 0));//线段的两个端点,相机光心,返回值是平面方程ax+by+cz+d=0中的4个参数
+                ni = pii.head(3); ni.normalize();
+                continue;
+            }
+
+            //find the best j-frame for triangulation
+            // 非start frame(其他帧)上的观测
+            Eigen::Vector3d world_t_cam_j = Ps[imu_j] + Rs[imu_j] * tic[0];// worldTcam-j = worldTimu-j * imuTcam
+            Eigen::Matrix3d world_R_cam_j = Rs[imu_j] * ric[0];
+
+            Eigen::Vector3d cami_t_camj = world_R_cam_i.transpose() * (world_t_cam_j - world_t_cam_i); //cam-iTcam-j = cam-iTworld * worldTcam-j
+            Eigen::Matrix3d cami_R_camj = world_R_cam_i.transpose() * world_R_cam_j;          
+            
+            // plane pi from j-th obs in ith camera frame
+            Eigen::Vector4d obsj_tmp = perFrameFeature.lineobs;
+            Vector3d sp( obsj_tmp(0), obsj_tmp(1), 1 );//sp of line
+            Vector3d ep( obsj_tmp(2), obsj_tmp(3), 1 );//ep of line
+            sp = cami_R_camj * sp + cami_t_camj;
+            ep = cami_R_camj * ep + cami_t_camj;
+            Vector4d planej = pi_from_ppp(sp, ep, cami_t_camj);
+            Eigen::Vector3d nj = planej.head(3); nj.normalize(); 
+
+            double cos_theta = ni.dot(nj);
+            if(cos_theta < min_cos_theta) {//多个候选的时候,不筛选吗??
+                min_cos_theta = cos_theta;
+                tij = cami_t_camj;
+                Rij = cami_R_camj;
+                // obsj = obsj_tmp;
+                farthestDistance = cami_t_camj.norm();
+                pij = planej;
+            }
+            // if( farthestDistance < cami_t_camj.norm() )  // 选择最远的那俩帧进行三角化
+        }
+        
+        // if the distance between two frame is lower than 0.1m or the parallax angle is lower than 15deg , do not triangulate.
+        // if(farthestDistance < 0.1 || min_cos_theta > 0.998) 
+        if(min_cos_theta > 0.998)
+            continue;
+
+        Vector6d plk = pipi_plk( pii, pij );
+
+        //Vector3d cp = plucker_origin( n, v );
+        //if ( cp(2) < 0 )  
+        // {
+          //  cp = - cp;
+          //  continue;
+        // }
+
+        perIdFeatures.line_plucker = plk;  // plk in camera frame
+        perIdFeatures.is_triangulation = true;
+
+        // used to debug 不懂
+        Vector3d pc, nc, vc;
+        nc = perIdFeatures.line_plucker.head(3);
+        vc = perIdFeatures.line_plucker.tail(3);
+
+
+        Matrix4d Lc;
+        Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
+
+        Vector4d obs_startframe = perIdFeatures.linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
+        Vector3d p11 = Vector3d(obs_startframe(0), obs_startframe(1), 1.0);
+        Vector3d p21 = Vector3d(obs_startframe(2), obs_startframe(3), 1.0);
+        Vector2d ln = ( p11.cross(p21) ).head(2);     // 直线的垂直方向
+        ln = ln / ln.norm();
+
+        Vector3d p12 = Vector3d(p11(0) + ln(0), p11(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
+        Vector3d p22 = Vector3d(p21(0) + ln(0), p21(1) + ln(1), 1.0);
+        Vector3d cam = Vector3d( 0, 0, 0 );
+
+        Vector4d pi1 = pi_from_ppp(cam, p11, p12);
+        Vector4d pi2 = pi_from_ppp(cam, p21, p22);
+
+        Vector4d e1 = Lc * pi1;
+        Vector4d e2 = Lc * pi2;
+        e1 = e1/e1(3);
+        e2 = e2/e2(3);
+
+        Vector3d pts_1(e1(0),e1(1),e1(2));
+        Vector3d pts_2(e2(0),e2(1),e2(2));
+
+        Vector3d w_pts_1 =  Rs[imu_i] * (ric[0] * pts_1 + tic[0]) + Ps[imu_i];
+        Vector3d w_pts_2 =  Rs[imu_i] * (ric[0] * pts_2 + tic[0]) + Ps[imu_i];
+        perIdFeatures.ptw1 = w_pts_1;
+        perIdFeatures.ptw2 = w_pts_2;
     }
 //    removeLineOutlier(Ps,tic,ric);
 }

@@ -99,12 +99,12 @@ class Estimator
     MatrixXd Ap[2], backup_A;
     VectorXd bp[2], backup_b;
 
-    Matrix3d ric[NUM_OF_CAM];
+    Matrix3d ric[NUM_OF_CAM];//相机和IMU之间外参
     Vector3d tic[NUM_OF_CAM];
 
-    Vector3d Ps[(WINDOW_SIZE + 1)];
+    Vector3d Ps[(WINDOW_SIZE + 1)];//滑动窗口内每一帧的位姿里面的t的部分
     Vector3d Vs[(WINDOW_SIZE + 1)];
-    Matrix3d Rs[(WINDOW_SIZE + 1)];
+    Matrix3d Rs[(WINDOW_SIZE + 1)];//滑动窗口内每一帧的位姿里面的R的部分
     Vector3d Bas[(WINDOW_SIZE + 1)];
     Vector3d Bgs[(WINDOW_SIZE + 1)];
 

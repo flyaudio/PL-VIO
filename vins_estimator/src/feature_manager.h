@@ -41,7 +41,8 @@ class FeaturePerId
     int start_frame;
     
     //  feature_per_frame 是个向量容器，存着这个特征在每一帧上的观测量。 
-    //                    如：feature_per_frame[0]，存的是ft在start_frame上的观测值; feature_per_frame[1]存的是start_frame+1上的观测
+    //                    如：feature_per_frame[0]，存的是ft在start_frame上的观测值; feature_per_frame[1]存的是start_frame+1上的观测;不对,不一定每一帧都有观测呀??
+    //                    1帧的观测只有1个吧?
     std::vector<FeaturePerFrame> feature_per_frame;
 
     int used_num;
@@ -159,6 +160,7 @@ class FeatureManager
     VectorXd getDepthVector();
     void triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
     void triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
+    void triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
     void triangulateLine(double baseline);  // stereo line
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
     void removeBack();

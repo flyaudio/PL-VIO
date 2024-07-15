@@ -53,8 +53,8 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header, E
 void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
                    Eigen::Matrix3d loop_correct_r);
 
-void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
-				   Eigen::Matrix3d loop_correct_r);
+void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, const Eigen::Vector3d& loop_correct_t,
+				   const Eigen::Matrix3d& loop_correct_r);
 
 void pubPoseGraph(CameraPoseVisualization* posegraph, const std_msgs::Header &header);
 

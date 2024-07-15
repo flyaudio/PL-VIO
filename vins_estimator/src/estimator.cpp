@@ -277,7 +277,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
                 slideWindow();
         }
         else
-            frame_count++;
+            frame_count++;//填满滑动窗口后才会进行后续的操作
     }
     else
     {
@@ -673,7 +673,7 @@ void Estimator::solveOdometry()
 {
     if (frame_count < WINDOW_SIZE)
         return;
-    if (solver_flag == NON_LINEAR)
+    if (solver_flag == NON_LINEAR)//初始化完成
     {
         TicToc t_tri;
         f_manager.triangulate(Ps, tic, ric);

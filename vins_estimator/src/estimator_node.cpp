@@ -258,7 +258,7 @@ void process()
 
             //handle point feature
             TicToc t_s;
-            map<int, vector<pair<int, Vector3d>>> image;
+            map<int, vector<pair<int, Vector3d>>> image;//<featureID, vector<camID, 归一化坐标>>
             for (unsigned int i = 0; i < img_msg->points.size(); i++)
             {
                 int v = img_msg->channels[0].values[i] + 0.5;
@@ -272,7 +272,7 @@ void process()
             }
             
             //handle line feature
-            map<int, vector<pair<int, Vector4d>>> lines;
+            map<int, vector<pair<int, Vector4d>>> lines;//<featureID, vector<camID, 线段两端点>
             for (unsigned int i = 0; i < line_msg->points.size(); i++)
             {
                 int v = line_msg->channels[0].values[i] + 0.5;
@@ -282,7 +282,7 @@ void process()
                 double y_startpoint = line_msg->points[i].y;
                 double x_endpoint = line_msg->channels[1].values[i];
                 double y_endpoint = line_msg->channels[2].values[i];
-                ROS_ASSERT(z == 1);
+                // ROS_ASSERT(z == 1);
                 lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));
             }
 
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vins_estimator");
     ros::NodeHandle n("~");
-    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
+    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug);
     readParameters(n);
     estimator.setParameter();
 #ifdef EIGEN_DONT_PARALLELIZE
