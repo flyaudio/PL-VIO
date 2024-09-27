@@ -677,7 +677,13 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
 //    removeLineOutlier(Ps,tic,ric);
 }
 
-
+/**
+ * @brief refactoring version of 'triangulateLine'
+ * @param Ps: world_T_imu_i
+ * @param Rs:
+ * @param tic: imu_T_cam
+ * @param ric:
+*/
 void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
 {
     for (auto& perIdFeatures : linefeature)//遍历每个特征,对新特征进行三角化
