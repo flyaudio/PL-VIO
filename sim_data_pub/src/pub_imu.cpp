@@ -22,7 +22,11 @@ T readParam(ros::NodeHandle &n, std::string name)
     return ans;
 }
 
-
+/**
+ * @format example:
+0 0.99875 0.0499792 0 0 20 5 5 0 0.429365 0.272656 -1.48044 0.979366 9.76099
+time,quaternion(4),translation(3),gyro(3), acc(3)
+ */
 void LoadPose(std::string filename, std::vector<double>& timestamp,std::vector<Eigen::Vector3d>& gyros, std::vector<Eigen::Vector3d>& accs)
 {
 

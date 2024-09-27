@@ -16,6 +16,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 find_package(OpenCV REQUIRED)
 
 # set(EIGEN_INCLUDE_DIR "/usr/local/include/eigen3")
+set(Ceres_DIR /tmp/ceres/lib/cmake/Ceres)
 find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
 

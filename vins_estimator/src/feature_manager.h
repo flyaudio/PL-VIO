@@ -166,8 +166,8 @@ class FeatureManager
     void removeBack();
     void removeFront(int frame_count);
     void removeOutlier();
-    list<FeaturePerId> feature;
-    list<lineFeaturePerId> linefeature;
+    list<FeaturePerId> feature; //list<point-feature>
+    list<lineFeaturePerId> linefeature; //list<line-feature>
     int last_track_num;
 
   private:

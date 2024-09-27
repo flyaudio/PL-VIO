@@ -74,7 +74,11 @@ void LoadPose(std::string filename, std::vector<double>& timestamp,std::vector<E
     }
 
 }
-
+/**
+ * @example:
+0.5 2.5 4.5 1 0.131838 -0.0142158
+3d-point(4), pixel-obs(2)
+ */
 void LoadPointObs(std::string filename, std::vector<Eigen::Vector2d>& obs)
 {
 
@@ -114,6 +118,11 @@ void LoadPointObs(std::string filename, std::vector<Eigen::Vector2d>& obs)
 
 }
 
+/**
+ * @example:0.143908 -0.163698 0.138984 -0.294066
+0.143908 -0.163698 0.138984 -0.294066
+
+ */
 void LoadLineObs(std::string filename, std::vector<Eigen::Vector4d>& obs)
 {
 
@@ -161,8 +170,8 @@ int main(int argc, char **argv)
 
     ros::Rate loop_rate(30);
     std::vector<double> timestamp;
-    std::vector<Eigen::Vector3d> gyros;
-    std::vector<Eigen::Vector3d> accs;
+    std::vector<Eigen::Vector3d> gyros;//not in use
+    std::vector<Eigen::Vector3d> accs;//not in use
 
     std::string sim_file;
     if (!n.getParam("sim_file_path", sim_file))
@@ -208,7 +217,7 @@ int main(int argc, char **argv)
 
             feature_points->points.push_back(p);
             id_of_point.values.push_back(p_id * 1.0);
-            u_of_point.values.push_back((float)pobs[j].x());
+            u_of_point.values.push_back((float)pobs[j].x());//redundancy
             v_of_point.values.push_back((float)pobs[j].y());
         }
         feature_points->channels.push_back(id_of_point);

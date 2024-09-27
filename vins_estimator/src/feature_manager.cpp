@@ -1,6 +1,8 @@
 #include "feature_manager.h"
 
-
+/**
+ * @brief 最后一个观测到这个特征点的图像帧id
+*/
 int lineFeaturePerId::endFrame()
 {
     return start_frame + linefeature_per_frame.size() - 1;//连续不间断的??
@@ -56,7 +58,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, std
     int parallax_num = 0;
     last_track_num = 0;
     for (auto &id_pts : image)        //遍历当前帧上的特征
-    {                                    //camID0.points
+    {                                    //camID0.point
         FeaturePerFrame f_per_fra(id_pts.second[0].second);//
 
         int feature_id = id_pts.first;
@@ -96,14 +98,16 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, std
     }
     else
     {
-        ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
+        // ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
         ROS_DEBUG("current parallax: %lf", parallax_sum / parallax_num * FOCAL_LENGTH);
-        return parallax_sum / parallax_num >= MIN_PARALLAX;
+        return parallax_sum / parallax_num >= MIN_PARALLAX;//MIN_PARALLAX=10.0/460.0
     }
 }
 /**
+ * @brief 特征点加入 & 视差检测
  * @return true:视差大;  false:视差小
-*/
+ * @usage 当平均视差(parallax sum/num) >= MIN_PARALLAX的情况下,删除滑动窗口中最旧的帧；当小于最小视差的情况,删除滑动窗口中第倒数第二帧图像
+ */
 //                                                                featureId      vector[cameraId,  point]             featureID, vector<camID,    线段两端点>
 bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Vector3d>>> &image, const map<int, vector<pair<int, Vector4d>>> &lines)
 {
@@ -177,7 +181,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     }
     else
     {
-        ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
+        // ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
         ROS_DEBUG("current parallax: %lf", parallax_sum / parallax_num * FOCAL_LENGTH);
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
@@ -256,7 +260,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     }
     else
     {
-        ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
+        // ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
         ROS_DEBUG("current parallax: %lf", parallax_sum / parallax_num * FOCAL_LENGTH);
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
@@ -512,10 +516,10 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
     for (auto &it_per_id : linefeature)//遍历每个特征,对新特征进行三角化
     {
         it_per_id.used_num = it_per_id.linefeature_per_frame.size(); // 已经有多少帧看到了这个特征
-        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
+        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2, or 这个特征最近倒数第二帧才看到,那就不三角化
             continue;
 
-        if (it_per_id.is_triangulation)       // 如果已经三角化了
+        if (it_per_id.is_triangulation)       // if已经三角化了
             continue;
 
         int imu_i = it_per_id.start_frame;//固定指向线特征的起始帧
@@ -1609,42 +1613,33 @@ void FeatureManager::removeFront(int frame_count)
 
 }
 
+/**
+ * check the second last frame is keyframe or not
+ * parallax betwwen seconde last frame and third last frame
+*/
 double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int frame_count)
 {
-    //check the second last frame is keyframe or not
-    //parallax betwwen seconde last frame and third last frame
-
-    //  frame_count ：当前帧的id
-    //  it_per_id.start_frame ： 特征第一次被测到的 帧id
+    //  frame_count:当前帧的id
+    //  it_per_id.start_frame: 特征第一次被测到的 帧id
     //  feature_per_frame 是个向量容器，存着这个特征在每一帧上的观测量。 
     //                    如：feature_per_frame[0]，存的是ft在start_frame上的观测值; feature_per_frame[1]存的是start_frame+1上的观测
-    const FeaturePerFrame &frame_i = it_per_id.feature_per_frame[frame_count - 2 - it_per_id.start_frame];
-    const FeaturePerFrame &frame_j = it_per_id.feature_per_frame[frame_count - 1 - it_per_id.start_frame];
-
-    double ans = 0;
+    const FeaturePerFrame &frame_i = it_per_id.feature_per_frame[frame_count - 2 - it_per_id.start_frame];//3rd last frame
+    const FeaturePerFrame &frame_j = it_per_id.feature_per_frame[frame_count - 1 - it_per_id.start_frame];//2nd last frame
+    
     Vector3d p_j = frame_j.point;
-
     double u_j = p_j(0);
-    double v_j = p_j(1);
+    double v_j = p_j(1);//因为特征点都是归一化之后的点，所以深度都为1，这里没有去除深度，下边去除深度，效果一样
 
     Vector3d p_i = frame_i.point;
-    Vector3d p_i_comp;
 
-    //int r_i = frame_count - 2;
-    //int r_j = frame_count - 1;
-    //p_i_comp = ric[camera_id_j].transpose() * Rs[r_j].transpose() * Rs[r_i] * ric[camera_id_i] * p_i;
-    p_i_comp = p_i;
-    double dep_i = p_i(2);
-    double u_i = p_i(0) / dep_i;
-    double v_i = p_i(1) / dep_i;
-    double du = u_i - u_j, dv = v_i - v_j;
+    double u_i = p_i(0) / p_i(2);
+    double v_i = p_i(1) / p_i(2);
+    double du = u_i - u_j, dv = v_i - v_j;//该点在前后两帧图像里归一化点的坐标差
+    return sqrt(du * du + dv * dv);
 
-    double dep_i_comp = p_i_comp(2);
-    double u_i_comp = p_i_comp(0) / dep_i_comp;
-    double v_i_comp = p_i_comp(1) / dep_i_comp;
-    double du_comp = u_i_comp - u_j, dv_comp = v_i_comp - v_j;
-
-    ans = max(ans, sqrt(min(du * du + dv * dv, du_comp * du_comp + dv_comp * dv_comp)));
-
-    return ans;
+    // Vector3d p_i_comp = p_i;
+    // double u_i_comp = p_i_comp(0) / p_i_comp(2);
+    // double v_i_comp = p_i_comp(1) / p_i_comp(2);
+    // double du_comp = u_i_comp - u_j, dv_comp = v_i_comp - v_j;
+    // return max(0., sqrt(min(du * du + dv * dv, du_comp * du_comp + dv_comp * dv_comp)));
 }
