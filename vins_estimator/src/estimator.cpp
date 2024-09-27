@@ -1004,10 +1004,12 @@ void  Estimator::onlyLineOpt()
     int feature_index = -1;
     for (auto &it_per_id : f_manager.linefeature)
     {
-        it_per_id.used_num = it_per_id.linefeature_per_frame.size();                // 已经被多少帧观测到， 这个已经在三角化那个函数里说了
-        if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2 && it_per_id.is_triangulation))// if这个特征才被观测到，那就跳过。实际上这里为啥不直接用如果特征没有三角化这个条件。
+        it_per_id.used_num = it_per_id.linefeature_per_frame.size();// 已经被多少帧观测到,这个已经在三角化那个函数里说了
+        // if (!(it_per_id.used_num >= LINE_MIN_OBS && it_per_id.start_frame < WINDOW_SIZE - 2 && it_per_id.is_triangulation))// if这个特征才被观测到，那就跳过。实际上这里为啥不直接用如果特征没有三角化这个条件。
+            // continue;
+        if (it_per_id.used_num < LINE_MIN_OBS || it_per_id.start_frame < WINDOW_SIZE - 2 || it_per_id.is_triangulation) {
             continue;
-
+        }
         ++feature_index;  // 这个变量会记录feature在 para_Feature 里的位置， 将深度存入para_Feature时索引的记录也是用的这种方式
         /*
         std::cout << para_LineFeature[feature_index][0] <<" "
@@ -1047,9 +1049,8 @@ void  Estimator::onlyLineOpt()
     ceres::Solver::Summary summary;
     ceres::Solve (options, &problem, & summary);
 
-    //std::cout <<"!!!!!!!!!!!!!onlyLineOpt!!!!!!!!!!!!!\n";
     double2vector();
-    //std::cout << summary.FullReport()<<std::endl;
+    std::cout << summary.FullReport()<<std::endl;
 
     f_manager.removeLineOutlier(Ps,tic,ric);
 }

@@ -8,6 +8,9 @@
 class Utility
 {
   public:
+  /**
+   * 角度到四元数组的变换
+   */
     template <typename Derived>
     static Eigen::Quaternion<typename Derived::Scalar> deltaQ(const Eigen::MatrixBase<Derived> &theta)
     {
