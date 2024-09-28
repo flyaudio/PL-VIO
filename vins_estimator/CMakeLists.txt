@@ -13,7 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
     nav_msgs
     tf
     cv_bridge
-#     camera_model
+    camera_model
     )
 
 find_package(OpenCV REQUIRED)
@@ -22,6 +22,10 @@ set(Ceres_DIR /tmp/ceres/lib/cmake/Ceres)
 find_package(Ceres REQUIRED)
 
 include_directories(${catkin_INCLUDE_DIRS} ${CERES_INCLUDE_DIRS})
+set (camodocal_dir  "${CMAKE_CURRENT_SOURCE_DIR}/../camera_model/include")
+include_directories(${camodocal_dir})
+message("=== camodocal_dir: ${camodocal_dir}")
+
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3  REQUIRED)

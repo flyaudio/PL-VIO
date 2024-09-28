@@ -9,7 +9,8 @@
     </node>
 
     <node name="pub_imu" pkg="pub_imu_features" type="pub_imu" output="log">
-       <param name="sim_file_path" type="string" value="$(arg simdata_path)" />    
+       <param name="sim_file_path" type="string" value="$(arg simdata_path)" />
+       <env name="ROS_LOG_DIR" value="$(find pub_imu_features)/log" />
     </node>
 
     <node name="pub_features" pkg="pub_imu_features" type="pub_feature" output="log">
