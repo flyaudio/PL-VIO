@@ -10,7 +10,7 @@ lineProjectionFactor::lineProjectionFactor(const Eigen::Vector4d &_obs_i) : obs_
 {
 };
 
-/*
+/*parameters:AddParameterBlock
   parameters[0]:  Twi
   parameters[1]:  Tbc
   parameters[2]:  line_orth
@@ -28,11 +28,11 @@ bool lineProjectionFactor::Evaluate(double const *const *parameters, double *res
 
     Eigen::Matrix3d Rwb(Qi);
     Eigen::Vector3d twb(Pi);
-    Vector6d line_b = plk_from_pose(line_w, Rwb, twb);
+    Vector6d line_b = plk_from_pose(line_w, Rwb, twb);//in body(imu) coordinate
     //std::cout << line_b.norm() <<"\n";
     Eigen::Matrix3d Rbc(qic);
     Eigen::Vector3d tbc(tic);
-    Vector6d line_c = plk_from_pose(line_b, Rbc, tbc);
+    Vector6d line_c = plk_from_pose(line_b, Rbc, tbc);//in cam coordinate
 
     // 直线的投影矩阵K为单位阵
     Eigen::Vector3d nc = line_c.head(3);//abc参数直接就是法向量参数

@@ -1382,8 +1382,8 @@ void Estimator::optimizationwithLine()
     int feature_index = -1;
     for (auto &it_per_id : f_manager.feature)
     {
-        it_per_id.used_num = it_per_id.feature_per_frame.size();                // 已经被多少帧观测到， 这个已经在三角化那个函数里说了
-        if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))  // 如果这个特征才被观测到，那就跳过。实际上这里为啥不直接用如果特征没有三角化这个条件。
+        it_per_id.used_num = it_per_id.feature_per_frame.size();// 已经被多少帧观测到， 这个已经在三角化那个函数里说了
+        if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))// 如果这个特征才被观测到，那就跳过。实际上这里为啥不直接用如果特征没有三角化这个条件。
             continue;
 
         ++feature_index;                     // 这个变量会记录feature在 para_Feature 里的位置， 将深度存入para_Feature时索引的记录也是用的这种方式
@@ -1468,7 +1468,7 @@ void Estimator::optimizationwithLine()
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    //cout << summary.BriefReport() << endl;
+    std::cout << summary.BriefReport() << std::endl;
 //    ROS_INFO("Points Lines Iterations : %d", static_cast<int>(summary.iterations.size()));
     sum_solver_time_ += t_solver.toc();
     mean_solver_time_ = sum_solver_time_/frame_cnt_;

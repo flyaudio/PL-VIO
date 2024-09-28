@@ -84,7 +84,9 @@ Vector4d plk_to_orth(Vector6d plk)
 
 }
 
-
+/**
+ * orth_to_plk
+ */
 Vector6d orth_to_plk(Vector4d orth)
 {
     Vector6d plk;
