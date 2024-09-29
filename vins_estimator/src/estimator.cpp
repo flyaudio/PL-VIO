@@ -1,4 +1,5 @@
 #include "estimator.h"
+#include "log.hpp"
 //#define LINEINCAM
 Estimator::Estimator(): f_manager{Rs}
 {
@@ -53,7 +54,6 @@ void Estimator::clearState()
     sum_of_back = 0;
     sum_of_front = 0;
     frame_count = 0;
-    solver_flag = INITIAL;
     initial_timestamp = 0;
     all_image_frame.clear();
     relocalize = false;
@@ -112,18 +112,20 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
 
 void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image, const map<int, vector<pair<int, Vector4d>>> &lines, const std_msgs::Header &header)
 {
-    ROS_DEBUG("new image coming ------------------------------------------");
-    ROS_DEBUG("Adding feature points %lu", image.size());
+    LOGD("------------------------------------------");
+    // ROS_DEBUG("Adding feature points %lu", image.size());
     //if (f_manager.addFeatureCheckParallax(frame_count, image))           // 当视差较大时，marg 老的关键帧
     if(f_manager.addFeatureCheckParallax(frame_count, image, lines))       // 对检测到的特征进行存放处理
         marginalization_flag = MARGIN_OLD;
     else                                                                   // 当视差较小时，比如静止，marg 新的图像帧
         marginalization_flag = MARGIN_SECOND_NEW;
 
-    ROS_DEBUG("this frame is--------------------%s", marginalization_flag ? "reject" : "accept");
-    ROS_DEBUG("%s", marginalization_flag ? "Non-keyframe" : "Keyframe");
-    ROS_DEBUG("Solving %d", frame_count);
-    ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
+    LOGI("this frame is {}", marginalization_flag==MARGIN_SECOND_NEW ? "reject" : "accept");
+    LOGI("this frame is {}", marginalization_flag==MARGIN_SECOND_NEW ? "Non-keyframe" : "Keyframe");
+    LOGI("Solving {}", frame_count);
+    ROS_ASSERT(frame_count <= WINDOW_SIZE);
+    ROS_ASSERT(frame_count <= 10);
+    LOGI("already has {} features", f_manager.getFeatureCount());
     Headers[frame_count] = header;
 
     ImageFrame imageframe(image, header.stamp.toSec());
@@ -133,7 +135,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
 
     if(ESTIMATE_EXTRINSIC == 2)
     {
-        ROS_INFO("calibrating extrinsic param, rotation movement is needed");
+        LOGI("calibrating extrinsic param, rotation movement is needed");
         if (frame_count != 0)
         {
             vector<pair<Vector3d, Vector3d>> corres = f_manager.getCorresponding(frame_count - 1, frame_count);
@@ -175,8 +177,10 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
             else
                 slideWindow();
         }
-        else
+        else {
+            ROS_INFO("wait for new frames(%d / %d)", frame_count, WINDOW_SIZE);
             frame_count++;
+        }
     }
     else
     {
@@ -436,7 +440,7 @@ bool Estimator::initialStructure()
         //ROS_WARN("IMU variation %f!", var);
         if(var < 0.25)
         {
-            ROS_INFO("IMU excitation not enouth!");
+            LOGW("IMU excitation not enouth!");
             //return false;
         }
     }
@@ -464,7 +468,7 @@ bool Estimator::initialStructure()
     int l;
     if (!relativePose(relative_R, relative_T, l))
     {
-        ROS_INFO("Not enough features or parallax; Move device around");
+        LOGW("Not enough features or parallax; Move device around");
         return false;
     }
     GlobalSFM sfm;
@@ -472,7 +476,7 @@ bool Estimator::initialStructure()
               relative_R, relative_T,
               sfm_f, sfm_tracked_points))
     {
-        ROS_DEBUG("global SFM failed!");
+        LOGW("global SFM failed!");
         marginalization_flag = MARGIN_OLD;
         return false;
     }
@@ -529,12 +533,12 @@ bool Estimator::initialStructure()
         if(pts_3_vector.size() < 6)
         {
             //cout << "pts_3_vector size " << pts_3_vector.size() << endl;
-            ROS_DEBUG("Not enough points for solve pnp !");
+            LOGW("Not enough points for solve pnp !");
             return false;
         }
         if (! cv::solvePnP(pts_3_vector, pts_2_vector, K, D, rvec, t, 1))
         {
-            ROS_DEBUG("solve pnp fail!");
+            LOGW("solve pnp fail!");
             return false;
         }
         cv::Rodrigues(rvec, r);
@@ -547,14 +551,12 @@ bool Estimator::initialStructure()
         frame_it->second.R = R_pnp * RIC[0].transpose();
         frame_it->second.T = T_pnp;
     }
-    if (visualInitialAlign())
-        return true;
-    else
-    {
-        ROS_INFO("misalign visual structure with IMU");
+    if (!visualInitialAlign()) {
+        LOGW("misalign visual structure with IMU");
         return false;
     }
-
+    LOGI("Initial Align Success");
+    return true;
 }
 
 bool Estimator::visualInitialAlign()
@@ -565,7 +567,7 @@ bool Estimator::visualInitialAlign()
     bool result = VisualIMUAlignment(all_image_frame, Bgs, g, x);
     if(!result)
     {
-        ROS_WARN("solve g failed!");
+        LOGW("solve g failed!");
         return false;
     }
 
@@ -629,8 +631,8 @@ bool Estimator::visualInitialAlign()
         Rs[i] = rot_diff * Rs[i];
         Vs[i] = rot_diff * Vs[i];
     }
-    ROS_DEBUG_STREAM("g0     " << g.transpose());
-    ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose()); 
+    LOGD("g0 {}", g.transpose());
+    LOGD("my R0 {}", Utility::R2ypr(Rs[0]).transpose()); 
 
     return true;
 }

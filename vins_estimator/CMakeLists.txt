@@ -26,6 +26,16 @@ set (camodocal_dir  "${CMAKE_CURRENT_SOURCE_DIR}/../camera_model/include")
 include_directories(${camodocal_dir})
 message("=== camodocal_dir: ${camodocal_dir}")
 
+#===================
+# spdlog
+#===================
+find_package(spdlog REQUIRED)
+set(spdlog_INCLUDE_DIRS /usr/local/include)
+if(spdlog_FOUND)
+        message(STATUS "spdlog include directories: ${spdlog_INCLUDE_DIRS}")
+        message(STATUS "spdlog library: ${spdlog_LIBRARIES}")
+endif()
+include_directories(${spdlog_INCLUDE_DIRS})
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3  REQUIRED)
@@ -74,7 +84,7 @@ LIST(APPEND SOURCEFILES
 
 )
 ADD_LIBRARY(vinsEstimatorLib SHARED ${SOURCEFILES})
-TARGET_LINK_LIBRARIES(vinsEstimatorLib ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES})
+TARGET_LINK_LIBRARIES(vinsEstimatorLib ${catkin_LIBRARIES} ${OpenCV_LIBS} ${CERES_LIBRARIES} )
 
 add_executable(plvio_estimator
         src/estimator_node.cpp

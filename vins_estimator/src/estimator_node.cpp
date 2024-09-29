@@ -9,6 +9,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "estimator.h"
+#include "log.hpp"
 #include "parameters.h"
 #include "utility/visualization.h"
 #include "loop-closure/loop_closure.h"
@@ -254,7 +255,7 @@ void process()
             auto point_and_line_msg = measurement.second;
             auto img_msg = point_and_line_msg.first;
             auto line_msg = point_and_line_msg.second;
-            ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
+            ROS_DEBUG("processing vision data with stamp %f", img_msg->header.stamp.toSec());
 
             //handle point feature
             TicToc t_s;
@@ -270,7 +271,7 @@ void process()
                 ROS_ASSERT(z == 1);
                 image[feature_id].emplace_back(camera_id, Vector3d(x, y, z));
             }
-            
+
             //handle line feature
             map<int, vector<pair<int, Vector4d>>> lines;//<featureID, vector<camID, 线段两端点>
             for (unsigned int i = 0; i < line_msg->points.size(); i++)
@@ -317,6 +318,7 @@ void process()
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vins_estimator");
+    // ros::console::shutdown();
     ros::NodeHandle n("~");
     if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug)) {
         ros::console::notifyLoggerLevelsChanged();
@@ -324,12 +326,11 @@ int main(int argc, char **argv)
     readParameters(n);
     estimator.setParameter();
 #ifdef EIGEN_DONT_PARALLELIZE
-    ROS_DEBUG("EIGEN_DONT_PARALLELIZE");
+    LOGI("EIGEN_DONT_PARALLELIZE");
 #endif
-    ROS_WARN("waiting for image and imu...");
+    LOGI("waiting for image and imu...");
 
     registerPub(n);
-
     ros::Subscriber sub_imu = n.subscribe(IMU_TOPIC, 2000, imu_callback, ros::TransportHints().tcpNoDelay());
     ros::Subscriber sub_image = n.subscribe("/feature_tracker/feature", 2000, feature_callback);
     ros::Subscriber sub_linefeature = n.subscribe("/linefeature_tracker/linefeature", 2000, linefeature_callback);

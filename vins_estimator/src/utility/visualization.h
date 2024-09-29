@@ -39,16 +39,16 @@ void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, co
 
 void printStatistics(const Estimator &estimator, double t);
 
-void pubOdometry(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
-                Eigen::Matrix3d loop_correct_r);
+void pubOdometry(const Estimator &estimator, const std_msgs::Header &header, const Eigen::Vector3d& loop_correct_t,
+                const Eigen::Matrix3d& loop_correct_r);
 
 void pubInitialGuess(const Estimator &estimator, const std_msgs::Header &header);
 
 void pubKeyPoses(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
 				Eigen::Matrix3d loop_correct_r);
 
-void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
-                   Eigen::Matrix3d loop_correct_r);
+void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header, const Eigen::Vector3d& loop_correct_t,
+                   const Eigen::Matrix3d& loop_correct_r);
 
 void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header, Eigen::Vector3d loop_correct_t,
                    Eigen::Matrix3d loop_correct_r);

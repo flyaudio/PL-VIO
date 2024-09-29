@@ -1,4 +1,5 @@
 #include "feature_manager.h"
+#include "log.hpp"
 
 /**
  * @brief 最后一个观测到这个特征点的图像帧id
@@ -111,9 +112,9 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, std
 //                                                                featureId      vector[cameraId,  point]             featureID, vector<camID,    线段两端点>
 bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Vector3d>>> &image, const map<int, vector<pair<int, Vector4d>>> &lines)
 {
-    ROS_DEBUG("input point feature: %d", (int)image.size());
-    ROS_DEBUG("input line feature: %d", (int)lines.size());
-    ROS_DEBUG("num of feature: %d", getFeatureCount());  // 已有的特征数目
+    LOGI("already has {} features", getFeatureCount());  // 已有的特征数目
+    LOGI("got {} pt features", image.size());
+    LOGI("got {} line features", lines.size());
     double parallax_sum = 0;
     int parallax_num = 0;
     last_track_num = 0;
@@ -181,8 +182,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     }
     else
     {
-        // ROS_DEBUG("parallax_sum: %lf, parallax_num: %d", parallax_sum, parallax_num);
-        ROS_DEBUG("current parallax: %lf", parallax_sum / parallax_num * FOCAL_LENGTH);
+        LOGI("current parallax: {}", parallax_sum / parallax_num * FOCAL_LENGTH);
         return parallax_sum / parallax_num >= MIN_PARALLAX;
     }
 }

@@ -87,7 +87,7 @@ class Estimator
         MARGIN_SECOND_NEW = 1
     };
 
-    double frame_cnt_ = 0;
+    double frame_cnt_ = 0;//TODO,frame_count??
     double sum_solver_time_ = 0.0;
     double mean_solver_time_ = 0.0;
     double sum_marg_time_ = 0.0;
@@ -119,7 +119,7 @@ class Estimator
     vector<Vector3d> linear_acceleration_buf[(WINDOW_SIZE + 1)];
     vector<Vector3d> angular_velocity_buf[(WINDOW_SIZE + 1)];
 
-    int frame_count;
+    int frame_count;//how many frames in sliding window
     int sum_of_outlier, sum_of_back, sum_of_front, sum_of_invalid;
 
     FeatureManager f_manager;
