@@ -73,7 +73,7 @@ class Estimator
     void double2vector();
     void double2vector2();
     bool failureDetection();
-
+    Eigen::Isometry3d getImuCamExtrinsic(const int& index=0) const;
 
     enum SolverFlag
     {

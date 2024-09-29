@@ -48,3 +48,8 @@ Vector6d plk_to_pose( Vector6d plk_w, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw )
 Vector6d plk_from_pose( Vector6d plk_c, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw );
 
 #endif //VINS_ESTIMATOR_LINE_GEOMETRY_H
+
+Matrix4d plucker2matrix(const Vector6d& plk);
+
+Eigen::Matrix<double,8,1> 
+getEndPts(const Vector6d& plk, const Eigen::Vector4d& lineObs);

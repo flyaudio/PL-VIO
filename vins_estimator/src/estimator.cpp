@@ -2264,3 +2264,6 @@ void Estimator::slideWindowOld()
 
 }
 
+Eigen::Isometry3d Estimator::getImuCamExtrinsic(const int& index) const {
+    return common::getIsometry(ric[index], tic[index]);
+}

@@ -11,3 +11,15 @@ Eigen::Matrix3d Utility::g2R(const Eigen::Vector3d &g)
     // R0 = Utility::ypr2R(Eigen::Vector3d{-90, 0, 0}) * R0;
     return R0;
 }
+
+namespace common {
+
+Eigen::Isometry3d getIsometry(const Eigen::Matrix3d &r, const Eigen::Vector3d &t) {
+    Eigen::Isometry3d o = Eigen::Isometry3d::Identity();
+    o.translation() = t;
+    o.linear() = r;
+    return o;
+}
+
+
+} // namespace common

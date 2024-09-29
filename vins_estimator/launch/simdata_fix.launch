@@ -3,7 +3,7 @@
 	<arg name="vins_path" default = "$(find feature_tracker)/../config/../" />
     <arg name="simdata_path" default = "$(find feature_tracker)/../config/simdata/data/" />
     
-    <node name="plvio_estimator" pkg="plvio_estimator" type="plvio_estimator" output="screen">
+    <node name="plvio_estimator" pkg="plvio_estimator" type="plvio_estimator" output="log">
        <param name="config_file" type="string" value="$(arg config_path)" />
        <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
@@ -15,6 +15,7 @@
 
     <node name="pub_features" pkg="pub_imu_features" type="pub_feature" output="log">
        <param name="sim_file_path" type="string" value="$(arg simdata_path)" />
+       <env name="ROS_LOG_DIR" value="$(find pub_imu_features)/log" />
     </node>
 
 </launch>

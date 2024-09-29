@@ -128,7 +128,7 @@ int main(int argc, char **argv)
         //imu_msg.angular_velocity_covariance = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
         //publish the new imu message
         out_pub.publish(imu_msg);
-        ROS_INFO("%s", "send an imu message");
+        ROS_INFO("%s", "publish an imu msg");
 
         //done publishing
         ros::spinOnce();

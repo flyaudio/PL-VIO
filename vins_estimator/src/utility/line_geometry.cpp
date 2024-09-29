@@ -244,3 +244,46 @@ Vector6d plk_from_pose( Vector6d plk_c, Eigen::Matrix3d Rcw, Eigen::Vector3d tcw
     Vector3d twc = -Rwc*tcw;
     return plk_to_pose( plk_c, Rwc, twc);
 }
+
+/**
+ * @return 对偶普朗克矩阵
+*/
+Matrix4d plucker2matrix(const Vector6d& plk) {
+    Vector3d nc = plk.head(3);
+    Vector3d vc = plk.tail(3);
+    Matrix4d Lc;
+    Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
+    return Lc;
+}
+
+/**
+ * @brief given a plucker line and it's observation, return the end points of the line in the camera coordinate
+ * @param plk
+ * @param lineObs: line Observation,include sp & ep
+ * @return 2 end pts
+ * @note plk & lineObservation should be in the coordinate
+*/
+Eigen::Matrix<double,8,1> 
+getEndPts(const Vector6d& plk, const Eigen::Vector4d& lineObs) {
+    Matrix4d Lc = plucker2matrix(plk);
+    Vector3d sp = Vector3d(lineObs(0), lineObs(1), 1.0);//图像坐标系下的两个端点的齐次坐标
+    Vector3d ep = Vector3d(lineObs(2), lineObs(3), 1.0);
+    Vector2d ln = ( sp.cross(ep) ).head(2); // 直线的垂直方向;叉积的结果是一个向量，该向量垂直于由 sp 和 ep 定义的直线
+    ln = ln / ln.norm();
+
+    Vector3d spShift = Vector3d(sp(0) + ln(0), sp(1) + ln(1), 1.0); // 直线垂直方向上移动一个单位
+    Vector3d epShift = Vector3d(ep(0) + ln(0), ep(1) + ln(1), 1.0);
+    Vector3d cam = Vector3d( 0, 0, 0 );
+
+    Vector4d pi_sp = pi_from_ppp(cam, sp, spShift);
+    Vector4d pi_ep = pi_from_ppp(cam, ep, epShift);
+
+    Vector4d e1 = Lc * pi_sp;//intersection between plucker-line * plane
+    Vector4d e2 = Lc * pi_ep;
+    e1 = e1/e1(3);//homogeneous coordinates -> 3d point
+    e2 = e2/e2(3);
+
+    Eigen::Matrix<double,8,1> endPts;
+    endPts << e1, e2;
+    return endPts;
+}

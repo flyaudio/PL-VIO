@@ -6,7 +6,7 @@ using namespace ros;
 using namespace Eigen;
 ros::Publisher pub_odometry, pub_latest_odometry;
 ros::Publisher pub_path, pub_loop_path;
-ros::Publisher pub_point_cloud, pub_margin_cloud, pub_lines, pub_marg_lines;
+ros::Publisher pub_point_cloud, pub_margin_cloud, pub_lines, pub_history_lines;
 ros::Publisher pub_key_poses;
 
 ros::Publisher pub_camera_pose;
@@ -26,7 +26,7 @@ void registerPub(ros::NodeHandle &n)
     pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("history_cloud", 1000);
     pub_lines = n.advertise<visualization_msgs::Marker>("lines_cloud", 1000);
-    pub_marg_lines = n.advertise<visualization_msgs::Marker>("history_lines_cloud", 1000);
+    pub_history_lines = n.advertise<visualization_msgs::Marker>("history_lines_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
     pub_camera_pose = n.advertise<geometry_msgs::PoseStamped>("camera_pose", 1000);
     pub_camera_pose_visual = n.advertise<visualization_msgs::MarkerArray>("camera_pose_visual", 1000);
@@ -312,8 +312,7 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header, E
     pub_margin_cloud.publish(margin_cloud);
 }
 
-visualization_msgs::Marker marg_lines_cloud;  // 全局变量用来保存所有的线段
-// std::list<visualization_msgs::Marker> marg_lines_cloud_last10frame;
+visualization_msgs::Marker marg_lines_cloud;  // 全局变量,所有历史线段叠加在一起
 void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, const Eigen::Vector3d& loop_correct_t,
                    const Eigen::Matrix3d& loop_correct_r)
 {
@@ -331,57 +330,33 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, c
     lines.color.b = 1.0;
     lines.color.a = 1.0;
 
+    ROS_INFO_STREAM("==line size:" << estimator.f_manager.linefeature.size());
     for (auto &it_per_id : estimator.f_manager.linefeature) {
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.is_triangulation == false)
             continue;
 
         int imu_i = it_per_id.start_frame;
 
-        Vector3d nc = it_per_id.line_plucker.head(3);
-        Vector3d vc = it_per_id.line_plucker.tail(3);
-        Matrix4d Lc;
-        Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
-
-        Vector4d obs = it_per_id.linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-        Vector3d sp = Vector3d(obs(0), obs(1), 1.0);//图像坐标系下的两个端点的齐次坐标
-        Vector3d ep = Vector3d(obs(2), obs(3), 1.0);
-        Vector2d ln = ( sp.cross(ep) ).head(2);     // 直线的垂直方向//叉积的结果是一个向量，该向量垂直于由 p11 和 p21 定义的直线
-        ln = ln / ln.norm();
-
-        Vector3d spShift = Vector3d(sp(0) + ln(0), sp(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
-        Vector3d epShift = Vector3d(ep(0) + ln(0), ep(1) + ln(1), 1.0);
-        Vector3d cam = Vector3d( 0, 0, 0 );
-
-        Vector4d pi_sp = pi_from_ppp(cam, sp, spShift);
-        Vector4d pi_ep = pi_from_ppp(cam, ep, epShift);
-
-        Vector4d e1 = Lc * pi_sp;//intersection between plucker-line * plane
-        Vector4d e2 = Lc * pi_ep;
-        e1 = e1/e1(3);//homogeneous coordinates -> 3d point
-        e2 = e2/e2(3);
-
-        Vector3d camPts_1(e1(0),e1(1),e1(2));
-        Vector3d camPts_2(e2(0),e2(1),e2(2));
-
-        Vector3d worldPts_1 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * camPts_1 + estimator.tic[0])
-                           + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
-        Vector3d worldPts_2 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * camPts_2 + estimator.tic[0])
-                           + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
-
-        geometry_msgs::Point p;
-        p.x = worldPts_1(0);
-        p.y = worldPts_1(1);
-        p.z = worldPts_1(2);
-        lines.points.emplace_back(p);
-        p.x = worldPts_2(0);
-        p.y = worldPts_2(1);
-        p.z = worldPts_2(2);
-        lines.points.emplace_back(p);
+        Eigen::Matrix<double,8,1> endPnts = getEndPts(it_per_id.line_plucker, it_per_id.linefeature_per_frame[0].lineobs);// 第一次观测到这帧
+        Eigen::Vector4d endPts_1 = endPnts.head(4);
+        Eigen::Vector4d endPts_2 = endPnts.tail(4);
+        
+        Eigen::Isometry3d loopCorrect = common::getIsometry(loop_correct_r, loop_correct_t);
+        Eigen::Isometry3d worldTimu = common::getIsometry(estimator.Rs[imu_i], estimator.Ps[imu_i]);
+        Eigen::Isometry3d imuTcam = estimator.getImuCamExtrinsic(0);
+        for(const auto& pt : {endPts_1, endPts_2}) {
+            Eigen::Vector4d worldPt = loopCorrect * worldTimu * imuTcam * pt;
+            geometry_msgs::Point p;
+            p.x = worldPt(0);
+            p.y = worldPt(1);
+            p.z = worldPt(2);
+            lines.points.emplace_back(p);
+        }
     }
     if(!lines.points.empty()) { //Points should not be empty for specified marker type.
         pub_lines.publish(lines);
+        ROS_INFO_STREAM("draw valid line num:" << lines.points.size() / 2);
     }
-
 
 //////////////////////////////////////////////
     // all marglization line
@@ -396,68 +371,39 @@ void pubLinesCloud(const Estimator &estimator, const std_msgs::Header &header, c
     marg_lines_cloud.color.r = 1.0;
     marg_lines_cloud.color.a = 1.0;
     for (auto &it_per_id : estimator.f_manager.linefeature) {
-//        int used_num;
-//        used_num = it_per_id.linefeature_per_frame.size();
-//        if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
-//            continue;
-//        //if (it_per_id->start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id->solve_flag != 1)
-//        //        continue;
-
-        if (it_per_id.start_frame == 0 && it_per_id.linefeature_per_frame.size() <= 2
-            && it_per_id.is_triangulation == true ) {
+        if (it_per_id.is_triangulation == true 
+        && it_per_id.linefeature_per_frame.size() <= 2
+        && it_per_id.start_frame == 0
+        ) {
             int imu_i = it_per_id.start_frame;
-            Vector3d nc = it_per_id.line_plucker.head(3);
-            Vector3d vc = it_per_id.line_plucker.tail(3);
-            Matrix4d Lc;
-            Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
 
-            Vector4d obs = it_per_id.linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-            Vector3d p11 = Vector3d(obs(0), obs(1), 1.0);
-            Vector3d p21 = Vector3d(obs(2), obs(3), 1.0);
-            Vector2d ln = ( p11.cross(p21) ).head(2);     // 直线的垂直方向
-            ln = ln / ln.norm();
-
-            Vector3d p12 = Vector3d(p11(0) + ln(0), p11(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
-            Vector3d p22 = Vector3d(p21(0) + ln(0), p21(1) + ln(1), 1.0);
-            Vector3d cam = Vector3d( 0, 0, 0 );
-
-            Vector4d pi1 = pi_from_ppp(cam, p11, p12);
-            Vector4d pi2 = pi_from_ppp(cam, p21, p22);
-
-            Vector4d e1 = Lc * pi1;
-            Vector4d e2 = Lc * pi2;
-            e1 = e1/e1(3);
-            e2 = e2/e2(3);
+            Eigen::Matrix<double,8,1> endPnts = getEndPts(it_per_id.line_plucker, it_per_id.linefeature_per_frame[0].lineobs);// 第一次观测到这帧
+            Eigen::Vector4d endPts_1 = endPnts.head(4);
+            Eigen::Vector4d endPts_2 = endPnts.tail(4);
 
 //            if(e1.norm() > 10 || e2.norm() > 10 || e1.norm() < 0.00001 || e2.norm() < 0.00001)
 //                continue;
-//
-            double length = (e1-e2).norm();
+
+            double length = (endPts_1 - endPts_2).norm();
             if(length > 10) {
                 continue;
             }
 
-            Vector3d pts_1(e1(0),e1(1),e1(2));
-            Vector3d pts_2(e2(0),e2(1),e2(2));
-
-            Vector3d w_pts_1 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * pts_1 + estimator.tic[0])
-                               + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
-            Vector3d w_pts_2 = loop_correct_r * estimator.Rs[imu_i] * (estimator.ric[0] * pts_2 + estimator.tic[0])
-                               + loop_correct_r * estimator.Ps[imu_i] + loop_correct_t;
-
-            geometry_msgs::Point p;
-            p.x = w_pts_1(0);
-            p.y = w_pts_1(1);
-            p.z = w_pts_1(2);
-            marg_lines_cloud.points.push_back(p);
-            p.x = w_pts_2(0);
-            p.y = w_pts_2(1);
-            p.z = w_pts_2(2);
-            marg_lines_cloud.points.push_back(p);
+            Eigen::Isometry3d loopCorrect = common::getIsometry(loop_correct_r, loop_correct_t);
+            Eigen::Isometry3d worldTimu = common::getIsometry(estimator.Rs[imu_i], estimator.Ps[imu_i]);
+            Eigen::Isometry3d imuTcam = estimator.getImuCamExtrinsic(0);
+            for(const auto& pt : {endPts_1, endPts_2}) {
+                Eigen::Vector4d worldPt = loopCorrect * worldTimu * imuTcam * pt;
+                geometry_msgs::Point p;
+                p.x = worldPt(0);
+                p.y = worldPt(1);
+                p.z = worldPt(2);
+                marg_lines_cloud.points.emplace_back(p);
+            }
         }
     }
     if(!marg_lines_cloud.points.empty()) {
-        pub_marg_lines.publish(marg_lines_cloud);
+        pub_history_lines.publish(marg_lines_cloud);
     }
 }
 

@@ -141,3 +141,8 @@ class Utility
             two_pi * std::floor((-angle_degrees + T(180)) / two_pi);
     };
 };
+
+namespace common {
+Eigen::Isometry3d getIsometry(const Eigen::Matrix3d &r, const Eigen::Vector3d &t);
+
+} // namespace common
