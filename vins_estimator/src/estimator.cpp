@@ -115,16 +115,18 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
     LOGD("------------------------------------------");
     // ROS_DEBUG("Adding feature points %lu", image.size());
     //if (f_manager.addFeatureCheckParallax(frame_count, image))           // 当视差较大时，marg 老的关键帧
-    if(f_manager.addFeatureCheckParallax(frame_count, image, lines))       // 对检测到的特征进行存放处理
+    if(f_manager.addFeatureCheckParallax(frame_count, image, lines)) {      // 对检测到的特征进行存放处理
         marginalization_flag = MARGIN_OLD;
-    else                                                                   // 当视差较小时，比如静止，marg 新的图像帧
+        LOGI("this frame is keyframe,accept");
+    }
+    else {                                                                  // 当视差较小时，比如静止，marg 新的图像帧
         marginalization_flag = MARGIN_SECOND_NEW;
+        LOGI("this frame is Non-keyframe,reject");
+    }
 
-    LOGI("this frame is {}", marginalization_flag==MARGIN_SECOND_NEW ? "reject" : "accept");
-    LOGI("this frame is {}", marginalization_flag==MARGIN_SECOND_NEW ? "Non-keyframe" : "Keyframe");
-    LOGI("Solving {}", frame_count);
-    ROS_ASSERT(frame_count <= WINDOW_SIZE);
-    ROS_ASSERT(frame_count <= 10);
+    LOGI("window size:{}", frame_count);
+    ASST(frame_count <= WINDOW_SIZE);
+    ASST(frame_count <= 10);
     LOGI("already has {} features", f_manager.getFeatureCount());
     Headers[frame_count] = header;
 
@@ -142,8 +144,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
             Matrix3d calib_ric;
             if (initial_ex_rotation.CalibrationExRotation(corres, pre_integrations[frame_count]->delta_q, calib_ric))
             {
-                ROS_WARN("initial extrinsic rotation calib success");
-                ROS_WARN_STREAM("initial extrinsic rotation: " << endl << calib_ric);
+                LOGI("initial extrinsic rotation:{}", calib_ric);
+                LOGI("initial extrinsic rotation calib success");
                 ric[0] = calib_ric;
                 RIC[0] = calib_ric;
                 ESTIMATE_EXTRINSIC = 1;
@@ -167,7 +169,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
                 solveOdometry();          // 三角化新特征 并 swf优化
                 slideWindow();
                 f_manager.removeFailures();
-                ROS_INFO("Initialization finish!");
+                LOGI("Initialization finish!");
                 last_R = Rs[WINDOW_SIZE];
                 last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];
@@ -178,7 +180,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
                 slideWindow();
         }
         else {
-            ROS_INFO("wait for new frames(%d / %d)", frame_count, WINDOW_SIZE);
+            LOGI("wait for new frames({}/{})", frame_count, WINDOW_SIZE);
             frame_count++;
         }
     }
@@ -190,18 +192,18 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
 
         if (failureDetection())
         {
-            ROS_WARN("failure detection!");
+            LOGW("failure detection!");
             failure_occur = 1;
             clearState();
             setParameter();
-            ROS_WARN("system reboot!");
+            LOGW("system reboot!");
             return;
         }
 
         TicToc t_margin;
         slideWindow();
         f_manager.removeFailures();
-        ROS_DEBUG("marginalization costs: %fms", t_margin.toc());
+        LOGI("marginalization cost {} ms", t_margin.toc());
         // prepare output of VINS
         key_poses.clear();
         for (int i = 0; i <= WINDOW_SIZE; i++)
@@ -416,9 +418,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
 bool Estimator::initialStructure()
 {
     TicToc t_sfm;
-    //check imu observibility
+    //check imu observibility,通过协方差检测IMU的可观测性
     {
-        map<double, ImageFrame>::iterator frame_it;
+        map<double, ImageFrame>::iterator frame_it;//key:时间戳,value:图像帧.图像帧中保存了图像帧的位姿,预积分量和关于角点的信息
         Vector3d sum_g;
         for (frame_it = all_image_frame.begin(), frame_it++; frame_it != all_image_frame.end(); frame_it++)
         {
@@ -437,11 +439,11 @@ bool Estimator::initialStructure()
             //cout << "frame g " << tmp_g.transpose() << endl;
         }
         var = sqrt(var / ((int)all_image_frame.size() - 1));
-        //ROS_WARN("IMU variation %f!", var);
+        LOGI("IMU variation {}:", var);
         if(var < 0.25)
         {
             LOGW("IMU excitation not enouth!");
-            //return false;
+            //return false;//注释掉之后,这段code感觉不起作用吧
         }
     }
     // global sfm
@@ -451,26 +453,30 @@ bool Estimator::initialStructure()
     vector<SFMFeature> sfm_f;
     for (auto &it_per_id : f_manager.feature)
     {
-        int imu_j = it_per_id.start_frame - 1;
+        int imu_j = it_per_id.start_frame - 1;//因为imu_j++, 所以 -1
         SFMFeature tmp_feature;
-        tmp_feature.state = false;
-        tmp_feature.id = it_per_id.feature_id;
+        tmp_feature.state = false;// 是否被三角化
+        tmp_feature.id = it_per_id.feature_id;// feature的id
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
             imu_j++;
-            Vector3d pts_j = it_per_frame.point;
+            Vector3d pts_j = it_per_frame.point;// 相机归一化坐标
             tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
         }
         sfm_f.push_back(tmp_feature);
-    } 
+    }
+
+    //在窗口内选择跟最后一帧视差最大的帧，利用五点法计算相对旋转和平移量
     Matrix3d relative_R;
     Vector3d relative_T;
     int l;
-    if (!relativePose(relative_R, relative_T, l))
+    if (!relativePose(relative_R, relative_T, l))//爲了使尺度統一，基於對極幾何的位姿求解只進行一次
     {
         LOGW("Not enough features or parallax; Move device around");
         return false;
     }
+    LOGI("relativePose succ. {}", relative_T.transpose());
+    
     GlobalSFM sfm;
     if(!sfm.construct(frame_count + 1, Q, T, l,
               relative_R, relative_T,
@@ -637,6 +643,9 @@ bool Estimator::visualInitialAlign()
     return true;
 }
 
+/*
+在滑動窗口中選擇兩幀中有足夠多特徵點和視差的幀l，利用五點法恢復相對旋轉和平移量 
+*/
 bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 {
     // find previous frame which contians enough correspondance and parallex with newest frame
@@ -644,8 +653,7 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
     {
         vector<pair<Vector3d, Vector3d>> corres;
         corres = f_manager.getCorresponding(i, WINDOW_SIZE);
-        //std::cout<<corres.size()<<"\n";
-        if (corres.size() > 20)  // 20
+        if (corres.size() > 20)
         {
             double sum_parallax = 0;
             double average_parallax;
@@ -658,12 +666,11 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 
             }
             average_parallax = 1.0 * sum_parallax / int(corres.size());
-//            std::cout << "average_parallax: "<<average_parallax * 460 << std::endl;
-//            if(average_parallax * 460 > 15 && m_estimator.solveRelativeRT(corres, relative_R, relative_T)) // 30
-            if(average_parallax * 460 > 30 && m_estimator.solveRelativeRT(corres, relative_R, relative_T))
+            LOGD("average_parallax:{}", average_parallax * 460);
+            if(average_parallax * 460 > 30 && m_estimator.solveRelativeRT(corres, relative_R, relative_T))//todo,FOCAL_LENGTH from yaml
             {
                 l = i;
-                ROS_DEBUG("average_parallax %f choose l %d and newest frame to triangulate the whole structure", average_parallax * 460, l);
+                LOGI("choose {} & newest frame to triangulate the whole structure", l);
                 return true;
             }
         }

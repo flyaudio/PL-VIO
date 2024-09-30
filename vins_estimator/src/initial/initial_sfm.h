@@ -15,10 +15,10 @@ using namespace std;
 
 struct SFMFeature
 {
-    bool state;
-    int id;
-    vector<pair<int,Vector2d>> observation;
-    double position[3];
+    bool state;	// 是否被三角化
+    int id;		// feature的id
+    vector<pair<int,Vector2d>> observation;//各帧中观测;保存了这个角点在一些列图像中的归一化坐标，以及那些图像帧的id
+    double position[3];//3D坐标// 保存角点的三维坐标
     double depth;
 };
 

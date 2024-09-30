@@ -153,7 +153,7 @@ class Estimator
     MarginalizationInfo *last_marginalization_info;
     vector<double *> last_marginalization_parameter_blocks;
 
-    map<double, ImageFrame> all_image_frame;
+    map<double, ImageFrame> all_image_frame;//sliding window 里面的所有帧?????
     IntegrationBase *tmp_pre_integration;
 
 };
