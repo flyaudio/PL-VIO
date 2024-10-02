@@ -1,4 +1,5 @@
 #include "estimator.h"
+#include "log.hpp"
 //#define LINEINCAM
 Estimator::Estimator(): f_manager{Rs}
 {
@@ -165,7 +166,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
                 solveOdometry();          // 三角化新特征 并 swf优化
                 slideWindow();
                 f_manager.removeFailures();
-                ROS_INFO("Initialization finish!");
+                LOGI("slide-win Initialization succ");
                 last_R = Rs[WINDOW_SIZE];
                 last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];
@@ -182,7 +183,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
     {
         TicToc t_solve;
         solveOdometry();      // 三角化新特征 并 swf优化
-        ROS_DEBUG("solver costs: %fms", t_solve.toc());
+        LOGI("solver costs {} ms", t_solve.toc());
 
         if (failureDetection())
         {
@@ -197,7 +198,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image,
         TicToc t_margin;
         slideWindow();
         f_manager.removeFailures();
-        ROS_DEBUG("marginalization costs: %fms", t_margin.toc());
+        LOGI("marginalization costs: {} ms", t_margin.toc());
         // prepare output of VINS
         key_poses.clear();
         for (int i = 0; i <= WINDOW_SIZE; i++)
@@ -436,7 +437,7 @@ bool Estimator::initialStructure()
         //ROS_WARN("IMU variation %f!", var);
         if(var < 0.25)
         {
-            ROS_INFO("IMU excitation not enouth!");
+            LOGI("IMU excitation not enouth!");
             //return false;
         }
     }
@@ -472,12 +473,13 @@ bool Estimator::initialStructure()
               relative_R, relative_T,
               sfm_f, sfm_tracked_points))
     {
-        ROS_DEBUG("global SFM failed!");
+        LOGW("global SFM failed!");
         marginalization_flag = MARGIN_OLD;
         return false;
     }
 
     //solve pnp for all frame
+    //对all_image_frame中没有参与SFM的帧的位姿进行了PnP求解????
     map<double, ImageFrame>::iterator frame_it;
     map<int, Vector3d>::iterator it;
     frame_it = all_image_frame.begin( );
@@ -529,32 +531,31 @@ bool Estimator::initialStructure()
         if(pts_3_vector.size() < 6)
         {
             //cout << "pts_3_vector size " << pts_3_vector.size() << endl;
-            ROS_DEBUG("Not enough points for solve pnp !");
+            LOGW("Not enough points({}) for solve pnp", pts_3_vector.size());
             return false;
         }
         if (! cv::solvePnP(pts_3_vector, pts_2_vector, K, D, rvec, t, 1))
         {
-            ROS_DEBUG("solve pnp fail!");
+            LOGW("solve pnp fail!");
             return false;
         }
         cv::Rodrigues(rvec, r);
         MatrixXd R_pnp,tmp_R_pnp;
         cv::cv2eigen(r, tmp_R_pnp);
-        R_pnp = tmp_R_pnp.transpose();
+        R_pnp = tmp_R_pnp.transpose();//world_R_cam
         MatrixXd T_pnp;
         cv::cv2eigen(t, T_pnp);
         T_pnp = R_pnp * (-T_pnp);
-        frame_it->second.R = R_pnp * RIC[0].transpose();
-        frame_it->second.T = T_pnp;
+        frame_it->second.R = R_pnp * RIC[0].transpose();//world_R_imu
+        frame_it->second.T = T_pnp;//scale还没有recover,所以没转到imu,是 world_t_cam
     }
     if (visualInitialAlign())
         return true;
     else
     {
-        ROS_INFO("misalign visual structure with IMU");
+        LOGW("misalign visual structure with IMU");
         return false;
     }
-
 }
 
 bool Estimator::visualInitialAlign()
@@ -671,8 +672,10 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 
 void Estimator::solveOdometry()
 {
-    if (frame_count < WINDOW_SIZE)
+    if (frame_count < WINDOW_SIZE) {
+        LOGW("skip,win size:{}", frame_count);
         return;
+    }
     if (solver_flag == NON_LINEAR)//初始化完成
     {
         TicToc t_tri;
@@ -681,9 +684,10 @@ void Estimator::solveOdometry()
         if(baseline_ > 0) //stereo
             f_manager.triangulateLine(baseline_);
         else
-            f_manager.triangulateLine(Ps, tic, ric);
+            // f_manager.triangulateLine(Ps, tic, ric);
+            f_manager.triangulateLine_2(Ps, tic, ric);
 
-        ROS_DEBUG("triangulation costs %f", t_tri.toc());
+        LOGI("triangulation costs {}", t_tri.toc());
 
         // optimization();
 
@@ -2152,6 +2156,7 @@ void Estimator::slideWindow()
     TicToc t_margin;
     if (marginalization_flag == MARGIN_OLD)
     {
+        LOGI("slide old");
         back_R0 = Rs[0];
         back_P0 = Ps[0];
         if (frame_count == WINDOW_SIZE)
@@ -2198,13 +2203,16 @@ void Estimator::slideWindow()
 
             }
             slideWindowOld();
+        } else {
+            LOGI("slideWindowOld:skip({})", frame_count);
         }
     }
     else
     {
+        LOGI("slide new");
         if (frame_count == WINDOW_SIZE)
         {
-            for (unsigned int i = 0; i < dt_buf[frame_count].size(); i++)
+            for (unsigned int i = 0; i < dt_buf[frame_count].size(); i++)//视觉margin掉，imu的preintegration继续进行
             {
                 double tmp_dt = dt_buf[frame_count][i];
                 Vector3d tmp_linear_acceleration = linear_acceleration_buf[frame_count][i];
@@ -2233,6 +2241,8 @@ void Estimator::slideWindow()
             angular_velocity_buf[WINDOW_SIZE].clear();
 
             slideWindowNew();
+        } else {
+            LOGI("slideWindowNew:skip({})", frame_count);
         }
     }
 }

@@ -92,7 +92,7 @@ public:
 
     //  feature_per_frame 是个向量容器，存着这个特征在每一帧上的观测量。
     //                    如：feature_per_frame[0]，存的是ft在start_frame上的观测值; feature_per_frame[1]存的是start_frame+1上的观测
-    vector<lineFeaturePerFrame> linefeature_per_frame;
+    vector<lineFeaturePerFrame> linefeature_per_frame;//todo,rename 'observations'
 
     int used_num;
     bool is_outlier;
@@ -103,13 +103,13 @@ public:
     Vector4d obs_init;
     Vector4d obs_j;
     Vector6d line_plk_init; // used to debug
-    Vector3d ptw1;  // used to debug
-    Vector3d ptw2;  // used to debug
+    Vector3d ptw1;  // 3d end point(in world-coordinate);used to debug
+    Vector3d ptw2;  // 3d end point(in world-coordinate);used to debug
     Eigen::Vector3d tj_;   // tij
     Eigen::Matrix3d Rj_;
     Eigen::Vector3d ti_;   // tij
     Eigen::Matrix3d Ri_;
-    int removed_cnt;
+    int removed_cnt; // 总共margin了多少次了？
     int all_obs_cnt;    // 总共观测多少次了？
 
     int solve_flag; // 0 haven't solve yet; 1 solve succ; 2 solve fail;
@@ -162,7 +162,8 @@ class FeatureManager
     void triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
     void triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
     void triangulateLine(double baseline);  // stereo line
-    void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
+    void removeBackShiftDepth(const Eigen::Matrix3d marg_R, const Eigen::Vector3d marg_P, 
+                              const Eigen::Matrix3d new_R, const Eigen::Vector3d new_P);
     void removeBack();
     void removeFront(int frame_count);
     void removeOutlier();
