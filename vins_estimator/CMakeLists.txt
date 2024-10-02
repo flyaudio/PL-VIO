@@ -26,6 +26,10 @@ set (camodocal_dir  "${CMAKE_CURRENT_SOURCE_DIR}/../camera_model/include")
 include_directories(${camodocal_dir})
 message("=== camodocal_dir: ${camodocal_dir}")
 
+set (spdlog_INCLUDE  "/usr/local/include")
+include_directories(${spdlog_INCLUDE})
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3  REQUIRED)

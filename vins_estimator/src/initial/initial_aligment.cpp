@@ -1,5 +1,8 @@
 #include "initial_alignment.h"
+#include "src/log.hpp"
 
+//see V-B-1 in Paper
+//根据视觉SFM的结果来校正陀螺仪的Bias，注意得到了新的Bias后对应的预积分需要repropagate
 void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
 {
     Matrix3d A;
@@ -52,7 +55,7 @@ MatrixXd TangentBasis(Vector3d &g0)
     return bc;
 }
 
-void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
+void RefineGravity(const map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
 {
     Vector3d g0 = g.normalized() * G.norm();
     Vector3d lx, ly;
@@ -65,8 +68,8 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
     VectorXd b{n_state};
     b.setZero();
 
-    map<double, ImageFrame>::iterator frame_i;
-    map<double, ImageFrame>::iterator frame_j;
+    map<double, ImageFrame>::const_iterator frame_i;
+    map<double, ImageFrame>::const_iterator frame_j;
     for(int k = 0; k < 4; k++)
     {
         MatrixXd lxly(3, 2);
@@ -122,7 +125,11 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
     g = g0;
 }
 
-bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
+//尺度初始化:由于在视觉初始化SFM的过程中，将其中位姿变化较大的两帧中使用E矩阵求解出来旋转和位移，后续的PnP和三角化都是在这个尺度下完成的。
+//所以当前的尺度与IMU测量出来的真实世界尺度肯定不是一致的，所以需要这里进行对齐。
+//这里对齐的方法主要是通过在滑动窗口中每两帧之间的位置和速度与IMU预积分出来的位置和速度组成一个最小二乘法的形式，然后求解出来
+//初始化滑动窗口中每帧的 速度V[0:n] Gravity Vectorg,尺度s -> 对应论文的V-B-2
+bool LinearAlignment(const map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
 {
     int all_frame_count = all_image_frame.size();
     int n_state = all_frame_count * 3 + 3 + 1;
@@ -132,8 +139,8 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
     VectorXd b{n_state};
     b.setZero();
 
-    map<double, ImageFrame>::iterator frame_i;
-    map<double, ImageFrame>::iterator frame_j;
+    map<double, ImageFrame>::const_iterator frame_i;
+    map<double, ImageFrame>::const_iterator frame_j;
     int i = 0;
     for (frame_i = all_image_frame.begin(); next(frame_i) != all_image_frame.end(); frame_i++, i++)
     {
@@ -178,29 +185,30 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
     b = b * 1000.0;
     x = A.ldlt().solve(b);
     double s = x(n_state - 1) / 100.0;
-    ROS_DEBUG("estimated scale: %f", s);
+    LOGI("estimated scale: {}", s);
     g = x.segment<3>(n_state - 4);
-    ROS_DEBUG_STREAM(" result g     " << g.norm() << " " << g.transpose());
     if(fabs(g.norm() - G.norm()) > 1.0 || s < 0)
     {
+        LOGW("invalid g(norm:{},vec:{})", g.norm(), g.transpose());
         return false;
     }
 
     RefineGravity(all_image_frame, g, x);
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
-    ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
+    LOGI(" refine {},{}", g.norm(), g.transpose());
     if(s < 0.0 )
         return false;   
     else
         return true;
 }
 
+// visual-inertial alignment：视觉SFM的结果与IMU预积分结果对齐
 bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, VectorXd &x)
 {
-    solveGyroscopeBias(all_image_frame, Bgs);
+    solveGyroscopeBias(all_image_frame, Bgs);//估测陀螺仪的Bias，对应论文V-B-1
 
-    if(LinearAlignment(all_image_frame, g, x))
+    if(LinearAlignment(all_image_frame, g, x))//求解V 重力向量g和 尺度s
         return true;
     else 
         return false;

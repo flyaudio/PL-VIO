@@ -1,5 +1,5 @@
 #include "parameters.h"
-
+#include "src/log.hpp"
 double BASE_LINE;
 
 double INIT_DEPTH;
@@ -111,8 +111,10 @@ void readParameters(ros::NodeHandle &n)
         eigen_R = Q.normalized();
         RIC.push_back(eigen_R);
         TIC.push_back(eigen_T);
-        ROS_INFO_STREAM("Extrinsic_R : " << std::endl << RIC[0]);
-        ROS_INFO_STREAM("Extrinsic_T : " << std::endl << TIC[0].transpose());
+        // ROS_INFO_STREAM("Extrinsic_R : " << std::endl << RIC[0]);
+        // ROS_INFO_STREAM("Extrinsic_T : " << std::endl << TIC[0].transpose());
+        LOGI("imu_T_cam R:{}", RIC[0]);
+        LOGI("imu_T_cam t:{}", TIC[0].transpose());
         
     } 
 

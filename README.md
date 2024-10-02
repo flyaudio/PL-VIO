@@ -100,3 +100,7 @@ We use [VINS-Mono](https://github.com/HKUST-Aerial-Robotics/VINS-Mono) as our ba
 The source code is released under [GPLv3](http://www.gnu.org/licenses/) license.
 
 We are still working on improving the code reliability. For any technical issues, please contact Yijia He <heyijia_2013@163.com>.
+
+export ROS_MASTER_URI=http://localhost:11311/
+export ROS_HOME=/home/znzz/ros_ws/src/PL-VIO
+export ROS_LOG_DIR=/home/znzz/ros_ws/src/PL-VIO
