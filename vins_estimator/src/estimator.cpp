@@ -113,7 +113,7 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
 
 void Estimator::processImage(const map<int, vector<pair<int, Vector3d>>> &image, const map<int, vector<pair<int, Vector4d>>> &lines, const std_msgs::Header &header)
 {
-    ROS_DEBUG("new image coming ------------------------------------------");
+    LOGI("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
     //if (f_manager.addFeatureCheckParallax(frame_count, image))           // 当视差较大时，marg 老的关键帧
     if(f_manager.addFeatureCheckParallax(frame_count, image, lines))       // 对检测到的特征进行存放处理
@@ -673,7 +673,7 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 void Estimator::solveOdometry()
 {
     if (frame_count < WINDOW_SIZE) {
-        LOGW("skip,win size:{}", frame_count);
+        LOGW("win size:{},skip", frame_count);
         return;
     }
     if (solver_flag == NON_LINEAR)//初始化完成
@@ -1001,7 +1001,7 @@ void  Estimator::onlyLineOpt()
         problem.SetParameterBlockConstant(para_Ex_Pose[i]);// 固定 外参数
 
     }
-    vector2double();// 将那些保存在vector向量里的参数 移到 double指针数组里去
+    vector2double();// 将那些保存在vector向量里的参数 移到double指针数组里去
 
     // 所有特征
     int f_m_cnt = 0;
@@ -1182,8 +1182,6 @@ void  Estimator::LineBA()
     std::cout << summary.FullReport()<<std::endl;
 
     f_manager.removeLineOutlier(Ps,tic,ric);
-
-
 }
 
 
@@ -1325,23 +1323,24 @@ void Estimator::optimizationwithLine()
     ceres::LossFunction *loss_function;
     //loss_function = new ceres::HuberLoss(1.0);
     loss_function = new ceres::CauchyLoss(1.0);
-    for (int i = 0; i < WINDOW_SIZE + 1; i++)    // 将窗口内的 p,q,v,ba,bg加入优化变量
+    for (int i = 0; i < WINDOW_SIZE + 1; i++) //将窗口内的 p,q,v,ba,bg加入优化变量
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+		//                      添加待优化变量          维度
         problem.AddParameterBlock(para_Pose[i], SIZE_POSE, local_parameterization);  // p,q
         problem.AddParameterBlock(para_SpeedBias[i], SIZE_SPEEDBIAS);                // v,ba,bg
     }
-    for (int i = 0; i < NUM_OF_CAM; i++)         // 外参数
+    for (int i = 0; i < NUM_OF_CAM; i++)// 外参数
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
         problem.AddParameterBlock(para_Ex_Pose[i], SIZE_POSE, local_parameterization);
         if (!ESTIMATE_EXTRINSIC)
         {
-            ROS_DEBUG("fix extinsic param");
+            LOGI("fix extinsic(imu_T_cam)");
             problem.SetParameterBlockConstant(para_Ex_Pose[i]);
         }
-        else
-            ROS_DEBUG("estimate extinsic param");
+        // else
+        //     LOGI("estimate extinsic param");
     }
 
     TicToc t_whole, t_prepare;    // 统计程序运行时间
@@ -1355,11 +1354,12 @@ void Estimator::optimizationwithLine()
     std::vector<ceres::ResidualBlockId> imufactor_residual_block_ids;
     //end debud
 #endif
+	// Step2.1: add residual for prior from last marginalization
     // 滑动窗口marg以后，上一次的prior factor
     if (last_marginalization_info)
     {
         // construct new marginlization_factor
-        MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
+        auto *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
         ceres::ResidualBlockId block_id = problem.AddResidualBlock(marginalization_factor, NULL,
                                  last_marginalization_parameter_blocks);
 #ifdef DebugFactor
@@ -1368,19 +1368,21 @@ void Estimator::optimizationwithLine()
 #endif
     }
 
+	// Step2.2: add residual for IMU
     // 窗口里各帧之间的 imu factor
     for (int i = 0; i < WINDOW_SIZE; i++)
     {
         int j = i + 1;
-        if (pre_integrations[j]->sum_dt > 10.0)      // 由于有时候会有静止的情况出现，这时候视差一直不够，关键帧一直没有选，预积分量一直累计，可能出现时间超过10s的情况？
+        if (pre_integrations[j]->sum_dt > 10.0)// 由于有时候会有静止的情况出现，这时候视差一直不够，关键帧一直没有选，预积分量一直累计，可能出现时间超过10s的情况？
             continue;
-        IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);            // 预积分误差项: 误差，雅克比的计算
+        IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);// 预积分误差项: 误差，雅克比的计算
         ceres::ResidualBlockId block_id = problem.AddResidualBlock(imu_factor, NULL, para_Pose[i], para_SpeedBias[i], para_Pose[j], para_SpeedBias[j]);
 #ifdef DebugFactor
         imufactor_residual_block_ids.push_back(block_id);
 #endif
     }
 
+	// Step2.3: add residual for per feature to per frame
     // 所有特征
     int f_m_cnt = 0;
     int feature_index = -1;
@@ -1394,7 +1396,7 @@ void Estimator::optimizationwithLine()
 
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
 
-        Vector3d pts_i = it_per_id.feature_per_frame[0].point;            // 图像上第一次观测到这个特征的坐标
+        Vector3d pts_i = it_per_id.feature_per_frame[0].point;//归一化相机坐标; 图像上第一次观测到这个特征的坐标
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
@@ -1441,7 +1443,7 @@ void Estimator::optimizationwithLine()
             line_m_cnt++;
         }
     }
-    ROS_INFO("lineFactor: %d, pointFactor:%d", line_m_cnt, f_m_cnt);
+    LOGI("lineFactor num:{}, pointFactor num:{}", line_m_cnt, f_m_cnt);
 
     // if(line_m_cnt > 20)
     // {
@@ -1451,13 +1453,12 @@ void Estimator::optimizationwithLine()
     // }
 
 ////////////////////////////////////////
+    LOGI("preparation for cost:{}", t_prepare.toc());
 
-    ROS_DEBUG("visual measurement count: %d", f_m_cnt);
-    ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
-
+    //Step3
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    //options.num_threads = 2;
+    options.num_threads = 2;
     options.trust_region_strategy_type = ceres::DOGLEG;
     options.max_num_iterations = NUM_ITERATIONS;
     //options.use_explicit_schur_complement = true;
@@ -1472,12 +1473,11 @@ void Estimator::optimizationwithLine()
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    std::cout << summary.BriefReport() << std::endl;
-//    ROS_INFO("Points Lines Iterations : %d", static_cast<int>(summary.iterations.size()));
+    LOGI("{}", summary.BriefReport());
     sum_solver_time_ += t_solver.toc();
     mean_solver_time_ = sum_solver_time_/frame_cnt_;
-    ROS_INFO("Points Lines solver costs: %f", mean_solver_time_);
-
+    LOGI("solve time:{}", t_solver.toc());
+    LOGI("mean solve time:{}", mean_solver_time_);
 
 #ifdef DebugFactor
     //----------- debug --------------------
@@ -1527,7 +1527,7 @@ void Estimator::optimizationwithLine()
     double2vector2();   // Line pose change
     TicToc t_culling;
     f_manager.removeLineOutlier(Ps,tic,ric);   // remove Line outlier
-    ROS_INFO("culling line feautre: %f ms", t_culling.toc());
+    LOGI("remove outlier(line) costs:{} ms", t_culling.toc());
 
 #ifdef DebugFactor
     // ----------------  debug  ----------------------
@@ -1565,6 +1565,7 @@ void Estimator::optimizationwithLine()
     //------------------- end debug  --------------------------------
 #endif
 
+    //边缘化:发生在优化完成后，滑动窗口前
     // 将优化以后要marg掉的部分转为prior factor
     TicToc t_whole_marginalization;
     if (marginalization_flag == MARGIN_OLD)
@@ -1685,11 +1686,11 @@ void Estimator::optimizationwithLine()
 
         TicToc t_pre_margin;
         marginalization_info->preMarginalize();
-        ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
+        LOGI("pre marginalization cost {} ms", t_pre_margin.toc());
         
         TicToc t_margin;
         marginalization_info->marginalize();
-        ROS_DEBUG("marginalization %f ms", t_margin.toc());
+        LOGI("marginalization cost {} ms", t_margin.toc());
 
         std::unordered_map<long, double *> addr_shift;
         for (int i = 1; i <= WINDOW_SIZE; i++)
@@ -1708,7 +1709,7 @@ void Estimator::optimizationwithLine()
         last_marginalization_parameter_blocks = parameter_blocks;
         
     }
-    else
+    else //MARGIN_NEW
     {
         if (last_marginalization_info &&
             std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[WINDOW_SIZE - 1]))
@@ -1735,14 +1736,14 @@ void Estimator::optimizationwithLine()
             }
 
             TicToc t_pre_margin;
-            ROS_DEBUG("begin marginalization");
+            LOGD("preMarginalize");
             marginalization_info->preMarginalize();
-            ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
+            LOGD("end pre marginalization,cost {} ms", t_pre_margin.toc());
 
             TicToc t_margin;
-            ROS_DEBUG("begin marginalization");
+            LOGD("begin marginalization");
             marginalization_info->marginalize();
-            ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
+            LOGD("end marginalization,cost {} ms", t_margin.toc());
             
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
@@ -1773,9 +1774,8 @@ void Estimator::optimizationwithLine()
     }
     sum_marg_time_ += t_whole_marginalization.toc();
     mean_marg_time_ = sum_marg_time_/frame_cnt_;
-    ROS_INFO("whole marginalization costs: %f", mean_marg_time_);
-
-    ROS_DEBUG("whole time for ceres: %f", t_whole.toc());
+    LOGI("whole marginalization costs:{}", mean_marg_time_);
+    LOGI("whole time for ceres:{}", t_whole.toc());
 }
 
 void Estimator::optimization()
@@ -1870,7 +1870,6 @@ void Estimator::optimization()
         }
     }
 
-//    ROS_DEBUG("visual measurement count: %d", f_m_cnt);
 //    ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
 
     ceres::Solver::Options options;

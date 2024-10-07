@@ -17,7 +17,7 @@
 #include "camodocal/camera_models/CameraFactory.h"
 #include "camodocal/camera_models/CataCamera.h"
 #include "camodocal/camera_models/PinholeCamera.h"
-
+#include "log.hpp"
 Estimator estimator;
 
 std::condition_variable con;
@@ -254,7 +254,7 @@ void process()
             auto point_and_line_msg = measurement.second;
             auto img_msg = point_and_line_msg.first;
             auto line_msg = point_and_line_msg.second;
-            ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
+            LOGI("processing vision data with stamp {}", img_msg->header.stamp.toSec());
 
             //handle point feature
             TicToc t_s;
