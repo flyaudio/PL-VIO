@@ -21,7 +21,7 @@ struct ResidualBlockInfo
 
     ceres::CostFunction *cost_function;
     ceres::LossFunction *loss_function;
-    std::vector<double *> parameter_blocks;   // 残差项 涉及到的 参数块
+    std::vector<double *> parameter_blocks;// 残差项 涉及到的 参数块//传进来的参数块(注意是参数块，不是参数)的地址放在vector<double*>里面，两个参数块则vector里面有两个
     std::vector<int> drop_set;
 
     double **raw_jacobians;

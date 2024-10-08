@@ -1,6 +1,5 @@
 #include "feature_manager.h"
-#include "log.hpp"
-
+#include "src/log.hpp"
 /**
  * @brief 最后一个观测到这个特征点的图像帧id
 */
@@ -688,21 +687,26 @@ void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d r
 {
     for (auto& perIdFeatures : linefeature)//遍历每个特征,对新特征进行三角化
     {
-        perIdFeatures.used_num = perIdFeatures.linefeature_per_frame.size(); // 已经有多少帧看到了这个特征
-        if (!(perIdFeatures.used_num >= LINE_MIN_OBS && perIdFeatures.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
+        auto& line = perIdFeatures;
+        auto& observations = perIdFeatures.linefeature_per_frame;
+        line.used_num = observations.size(); // 已经有多少帧看到了这个特征
+        if (!(line.used_num >= LINE_MIN_OBS && line.start_frame < WINDOW_SIZE - 2)) //看到的帧数少于2， 或者 这个特征最近倒数第二帧才看到， 那都不三角化
             continue;
 
-        if (perIdFeatures.is_triangulation) // 已经三角化了
+        if (line.is_triangulation) // 已经三角化了
             continue;
 
-        int imu_i = perIdFeatures.start_frame;//固定指向线特征的起始帧
+        int imu_i = line.start_frame;//固定指向线特征的起始帧
         int imu_j = imu_i - 1;//非起始帧的每一个观测
 
-        ROS_ASSERT(NUM_OF_CAM == 1);
+        ASST(NUM_OF_CAM == 1);
 
         // worldTcam-i = worldTimu-i * imuTcam
         Eigen::Vector3d world_t_cam_i = Ps[imu_i] + Rs[imu_i] * tic[0];   // twc = Rwi * tic + twi//worldTimu * imuTcam = worldTcam_i
         Eigen::Matrix3d world_R_cam_i = Rs[imu_i] * ric[0];               // Rwc = Rwi * Ric
+        Eigen::Isometry3d world_T_cami;
+        world_T_cami.translation() = Ps[imu_i] + Rs[imu_i] * tic[0];
+        world_T_cami.linear() = Rs[imu_i] * ric[0];
 
         double farthestDistance = 0;
         double min_cos_theta = 1.0;
@@ -712,14 +716,14 @@ void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d r
         // plane pi from ith obs in ith camera frame
         Eigen::Vector4d pii; //plane pi on i-th frame
         Eigen::Vector4d pij; //plane pi on j-th frame
-        for (auto& perFrameFeature : perIdFeatures.linefeature_per_frame)//遍历所有的观测,注意 start_frame 也会被遍历
+        for (auto& perFrameFeature : observations)//遍历所有的观测,注意 start_frame 也会被遍历
         {
             imu_j++;
 
             // 第一个观测是start frame 上
             Eigen::Vector3d ni;  //normal vector on i-th frame
             if(imu_j == imu_i) {
-                Eigen::Vector4d obsi = perFrameFeature.lineobs;
+                const Eigen::Vector4d& obsi = perFrameFeature.lineobs;
                 Eigen::Vector3d sp( obsi(0), obsi(1), 1 );//sp of line
                 Eigen::Vector3d ep( obsi(2), obsi(3), 1 );//ep of line
                 pii = pi_from_ppp(sp, ep, Vector3d(0, 0, 0));//线段的两个端点,相机光心,返回值是平面方程ax+by+cz+d=0中的4个参数
@@ -731,10 +735,13 @@ void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d r
             // 非start frame(其他帧)上的观测
             Eigen::Vector3d world_t_cam_j = Ps[imu_j] + Rs[imu_j] * tic[0];// worldTcam-j = worldTimu-j * imuTcam
             Eigen::Matrix3d world_R_cam_j = Rs[imu_j] * ric[0];
+            Eigen::Isometry3d world_T_camj;
+            world_T_camj.translation() = Ps[imu_j] + Rs[imu_j] * tic[0];
+            world_T_camj.linear() = Rs[imu_j] * ric[0];
 
             Eigen::Vector3d cami_t_camj = world_R_cam_i.transpose() * (world_t_cam_j - world_t_cam_i); //cam-iTcam-j = cam-iTworld * worldTcam-j
             Eigen::Matrix3d cami_R_camj = world_R_cam_i.transpose() * world_R_cam_j;          
-            
+            Eigen::Isometry3d cami_T_camj = world_T_cami.inverse() * world_T_camj;
             // plane pi from j-th obs in ith camera frame
             Eigen::Vector4d obsj_tmp = perFrameFeature.lineobs;
             Vector3d sp( obsj_tmp(0), obsj_tmp(1), 1 );//sp of line
@@ -770,21 +777,21 @@ void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d r
           //  continue;
         // }
 
-        perIdFeatures.line_plucker = plk;  // plk in camera frame
-        perIdFeatures.is_triangulation = true;
+        line.line_plucker = plk;  // plk in camera frame
+        line.is_triangulation = true;
 
         // used to debug 不懂
         Vector3d pc, nc, vc;
-        nc = perIdFeatures.line_plucker.head(3);
-        vc = perIdFeatures.line_plucker.tail(3);
+        nc = line.line_plucker.head(3);
+        vc = line.line_plucker.tail(3);
 
-
+        // cal 2 planes from observation(start-point & end-point)
         Matrix4d Lc;
         Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
 
-        Vector4d obs_startframe = perIdFeatures.linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-        Vector3d p11 = Vector3d(obs_startframe(0), obs_startframe(1), 1.0);
-        Vector3d p21 = Vector3d(obs_startframe(2), obs_startframe(3), 1.0);
+        Vector4d firstObs = observations[0].lineobs;   // 第一次观测到这帧
+        Vector3d p11 = Vector3d(firstObs(0), firstObs(1), 1.0);
+        Vector3d p21 = Vector3d(firstObs(2), firstObs(3), 1.0);
         Vector2d ln = ( p11.cross(p21) ).head(2);     // 直线的垂直方向
         ln = ln / ln.norm();
 
@@ -795,6 +802,7 @@ void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d r
         Vector4d pi1 = pi_from_ppp(cam, p11, p12);
         Vector4d pi2 = pi_from_ppp(cam, p21, p22);
 
+        // intersection between plucker line & plane
         Vector4d e1 = Lc * pi1;
         Vector4d e2 = Lc * pi2;
         e1 = e1/e1(3);
@@ -805,8 +813,8 @@ void FeatureManager::triangulateLine_2(Vector3d Ps[], Vector3d tic[], Matrix3d r
 
         Vector3d w_pts_1 =  Rs[imu_i] * (ric[0] * pts_1 + tic[0]) + Ps[imu_i];
         Vector3d w_pts_2 =  Rs[imu_i] * (ric[0] * pts_2 + tic[0]) + Ps[imu_i];
-        perIdFeatures.ptw1 = w_pts_1;
-        perIdFeatures.ptw2 = w_pts_2;
+        line.ptw1 = w_pts_1;
+        line.ptw2 = w_pts_2;
     }
 //    removeLineOutlier(Ps,tic,ric);
 }
@@ -1391,10 +1399,18 @@ void FeatureManager::removeLineOutlier(Vector3d Ps[], Vector3d tic[], Matrix3d r
     }
 }
 
-void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P)
+/**
+ * @brief 点特征的depth,现特征的3d坐标,都是基于window中的首次观测帧.
+ * 既然首次观测帧要被移除window,那么点特征的depth&现特征的3d line就变换到新的首次观测帧.
+ * @param marg_R world_T_cam0
+ * @param marg_P
+ * @param new_R world_T_cam1
+ * @param new_P
+*/
+void FeatureManager::removeBackShiftDepth(const Eigen::Matrix3d marg_R, const Eigen::Vector3d marg_P,
+                                        const Eigen::Matrix3d new_R, const Eigen::Vector3d new_P)
 {
-    std::cout << "removeBackShiftDepth\n";
-
+    LOGI("removeBackShiftDepth");
     for (auto it = feature.begin(), it_next = feature.begin();
          it != feature.end(); it = it_next)
     {
@@ -1411,7 +1427,7 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 feature.erase(it);
                 continue;
             }
-            else  // 如果还有很多帧看到它，而我们又把这个特征的初始化帧给marg掉了，那就得把这个特征转挂到下一帧上去, 这里 marg_R, new_R 都是相应时刻的相机坐标系到世界坐标系的变换
+            else // 如果还有很多帧看到它，而我们又把这个特征的初始化帧给marg掉了，那就得把这个特征转挂到下一帧上去, 这里 marg_R, new_R 都是相应时刻的相机坐标系到世界坐标系的变换
             {
                 Eigen::Vector3d pts_i = uv_i * it->estimated_depth;
                 Eigen::Vector3d w_pts_i = marg_R * pts_i + marg_P;
@@ -1438,52 +1454,14 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
     {
         it_next++;
 
-        if (it->start_frame != 0)    // 如果特征不是在这帧上初始化的，那就不用管，只要管id--
+        if (it->start_frame != 0) // 如果特征不是在这帧上初始化的，那就不用管，只要管id--
         {
             it->start_frame--;
         }
         else
         {
-/*
-            //  used to debug
-            Vector3d pc, nc, vc;
-            nc = it->line_plucker.head(3);
-            vc = it->line_plucker.tail(3);
-
-            Matrix4d Lc;
-            Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
-
-            Vector4d obs_startframe = it->linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-            Vector3d p11 = Vector3d(obs_startframe(0), obs_startframe(1), 1.0);
-            Vector3d p21 = Vector3d(obs_startframe(2), obs_startframe(3), 1.0);
-            Vector2d ln = ( p11.cross(p21) ).head(2);     // 直线的垂直方向
-            ln = ln / ln.norm();
-
-            Vector3d p12 = Vector3d(p11(0) + ln(0), p11(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
-            Vector3d p22 = Vector3d(p21(0) + ln(0), p21(1) + ln(1), 1.0);
-            Vector3d cam = Vector3d( 0, 0, 0 );
-
-            Vector4d pi1 = pi_from_ppp(cam, p11, p12);
-            Vector4d pi2 = pi_from_ppp(cam, p21, p22);
-
-            Vector4d e1 = Lc * pi1;
-            Vector4d e2 = Lc * pi2;
-            e1 = e1/e1(3);
-            e2 = e2/e2(3);
-
-            Vector3d pts_1(e1(0),e1(1),e1(2));
-            Vector3d pts_2(e2(0),e2(1),e2(2));
-
-            Vector3d w_pts_1 =  marg_R * pts_1 + marg_P;
-            Vector3d w_pts_2 =  marg_R * pts_2 + marg_P;
-
-            std::cout<<"-------------------------------\n";
-            std::cout << w_pts_1 << "\n" <<w_pts_2 <<"\n\n";
-            Vector4d obs_startframe = it->linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-            */
-//-----------------
-            it->linefeature_per_frame.erase(it->linefeature_per_frame.begin());  // 移除观测
-            if (it->linefeature_per_frame.size() < 2)                     // 如果观测到这个帧的图像少于两帧，那这个特征不要了
+            it->linefeature_per_frame.erase(it->linefeature_per_frame.begin()); // 移除观测
+            if (it->linefeature_per_frame.size() < 2) // 如果观测到这个帧的图像少于两帧，那这个特征不要了
             {
                 linefeature.erase(it);
                 continue;
@@ -1494,47 +1472,11 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 // transpose this line to the new pose
                 Matrix3d Rji = new_R.transpose() * marg_R;     // Rcjw * Rwci
                 Vector3d tji = new_R.transpose() * (marg_P - new_P);
-                Vector6d plk_j = plk_to_pose(it->line_plucker, Rji, tji);
+                Vector6d plk_j = plk_to_pose(it->line_plucker, Rji, tji);//line-in-1 = 1T0 * line-in-0
                 it->line_plucker = plk_j;
             }
-//-----------------------
-/*
-            //  used to debug
-            nc = it->line_plucker.head(3);
-            vc = it->line_plucker.tail(3);
-
-            Lc << skew_symmetric(nc), vc, -vc.transpose(), 0;
-
-            obs_startframe = it->linefeature_per_frame[0].lineobs;   // 第一次观测到这帧
-            p11 = Vector3d(obs_startframe(0), obs_startframe(1), 1.0);
-            p21 = Vector3d(obs_startframe(2), obs_startframe(3), 1.0);
-            ln = ( p11.cross(p21) ).head(2);     // 直线的垂直方向
-            ln = ln / ln.norm();
-
-            p12 = Vector3d(p11(0) + ln(0), p11(1) + ln(1), 1.0);  // 直线垂直方向上移动一个单位
-            p22 = Vector3d(p21(0) + ln(0), p21(1) + ln(1), 1.0);
-            cam = Vector3d( 0, 0, 0 );
-
-            pi1 = pi_from_ppp(cam, p11, p12);
-            pi2 = pi_from_ppp(cam, p21, p22);
-
-            e1 = Lc * pi1;
-            e2 = Lc * pi2;
-            e1 = e1/e1(3);
-            e2 = e2/e2(3);
-
-            pts_1 = Vector3d(e1(0),e1(1),e1(2));
-            pts_2 = Vector3d(e2(0),e2(1),e2(2));
-
-            w_pts_1 =  new_R * pts_1 + new_P;
-            w_pts_2 =  new_R * pts_2 + new_P;
-
-            std::cout << w_pts_1 << "\n" <<w_pts_2 <<"\n";
-*/
         }
     }
-
-
 }
 
 // 移除窗口里最老关键帧对应的帧上的特征
@@ -1545,19 +1487,19 @@ void FeatureManager::removeBack()
     {
         it_next++;
 
-        // 如果这个特征不是在窗口里最老关键帧上观测到的，由于窗口里移除掉了一个帧，所有其他特征对应的初始化帧id都要减1左移
+        // 如果这个特征不是在窗口里最老关键帧上观测到的，由于窗口里移除掉了一个帧，所有其他特征对应的初始化帧id都要-1左移
         // 例如： 窗口里有 0,1,2,3,4 一共5个关键帧，特征f2在第2帧上三角化的， 移除掉第0帧以后， 第2帧在窗口里的id就左移变成了第1帧，这是很f2的start_frame对应减1
         if (it->start_frame != 0)
             it->start_frame--;
         else
         {
             it->feature_per_frame.erase(it->feature_per_frame.begin());  // 删掉特征ft在这个图像帧上的观测量
-            if (it->feature_per_frame.size() == 0)                       // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
+            if (it->feature_per_frame.empty())                       // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
                 feature.erase(it);
         }
     }
 
-    std::cout << "remove back" << std::endl;
+    LOGI("removeBack");
     for (auto it = linefeature.begin(), it_next = linefeature.begin();
          it != linefeature.end(); it = it_next)
     {
@@ -1570,7 +1512,7 @@ void FeatureManager::removeBack()
         else
         {
             it->linefeature_per_frame.erase(it->linefeature_per_frame.begin());  // 删掉特征ft在这个图像帧上的观测量
-            if (it->linefeature_per_frame.size() == 0)                       // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
+            if (it->linefeature_per_frame.empty())                       // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
                 linefeature.erase(it);
         }
     }
@@ -1591,13 +1533,13 @@ void FeatureManager::removeFront(int frame_count)
             int j = WINDOW_SIZE - 1 - it->start_frame;    // j指向第i-1帧
             if (it->endFrame() < frame_count - 1)
                 continue;
-            it->feature_per_frame.erase(it->feature_per_frame.begin() + j);   // 删掉特征ft在这个图像帧上的观测量
-            if (it->feature_per_frame.size() == 0)                            // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
+            it->feature_per_frame.erase(it->feature_per_frame.begin() + j); // 删掉特征ft在这个图像帧上的观测量
+            if (it->feature_per_frame.empty()) // 如果没有其他图像帧能看到这个特征，删掉它
                 feature.erase(it);
         }
     }
 
-    std::cout << "remove front \n";
+    LOGI("removeFront");
     for (auto it = linefeature.begin(), it_next = linefeature.begin(); it != linefeature.end(); it = it_next)
     {
         it_next++;
@@ -1616,7 +1558,6 @@ void FeatureManager::removeFront(int frame_count)
                 linefeature.erase(it);
         }
     }
-
 }
 
 /**

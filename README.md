@@ -105,3 +105,17 @@ We are still working on improving the code reliability. For any technical issues
 export ROS_LOG_DIR=/media/000C868A0004E031/test_ws/src/PL-VIO
 export ROSCONSOLE_CONFIG_FILE=~/.ros/rosconsole.config
 export ROS_HOME=/media/000C868A0004E031/test_ws/src/PL-VIO
+export ROS_MASTER_URI=http://localhost:11311/
+
+
+白话VINS-Mono之边缘化（五）
+https://zhuanlan.zhihu.com/p/430996372
+vins中有很多优化变量,边缘化操作时这些优化变量都是当做整体去处理.
+
+边缘化&先验的一些思考
+https://zhuanlan.zhihu.com/p/361134320
+
+# why marginization
+VINS中的边缘化的是滑动窗口中的最老帧或者次新帧，将滑窗内的某些较旧或者不满足要求的视觉帧剔除，所以边缘化也被描述为将联合概率分布分解为边缘概率分布和条件概率分布的过程(就是利用 schur 补减少优化参数的过程)
+
+边缘化目标是不再计算这一帧的位姿，甚至可能会不计算该帧相关的一些路标点，但希望保留该帧对滑动窗口内其他帧的约束关系，这样不会减少约束信息，利于对状态变量优化，在移出位姿或特征的时候，需要将相关联的约束转变成一个约束项作为 prior 放到优化问题中，这就是marginalization要做的事情。否则，将 pose 移出窗口时，丢掉与其相关的所有约束，会导致求解精度下降，且当机器人进行退化运动(如: 匀速运动)时，没有历史信息做约束的话是无法求解的

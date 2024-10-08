@@ -1,10 +1,10 @@
 #include "marginalization_factor.h"
-
+#include "src/log.hpp"
 void ResidualBlockInfo::Evaluate()
 {
     residuals.resize(cost_function->num_residuals());
 
-    std::vector<int> block_sizes = cost_function->parameter_block_sizes();
+    std::vector<int> block_sizes = cost_function->parameter_block_sizes();//比如定义的参数块是2个，里面分别有 7 3个参数，parameter_block_sizes里面放的是7 3
     raw_jacobians = new double *[block_sizes.size()];
     jacobians.resize(block_sizes.size());
 
@@ -70,27 +70,25 @@ void ResidualBlockInfo::Evaluate()
 
 MarginalizationInfo::~MarginalizationInfo()
 {
-    //ROS_WARN("release marginlizationinfo");
-    
     for (auto it = parameter_block_data.begin(); it != parameter_block_data.end(); ++it)
         delete it->second;
 
     for (int i = 0; i < (int)factors.size(); i++)
     {
-
         delete[] factors[i]->raw_jacobians;
         
         delete factors[i]->cost_function;
 
         delete factors[i];
     }
+    LOGD("dtor");
 }
 
 void MarginalizationInfo::addResidualBlockInfo(ResidualBlockInfo *residual_block_info)
 {
     factors.emplace_back(residual_block_info);
 
-    std::vector<double *> &parameter_blocks = residual_block_info->parameter_blocks;                       // 这个残差模块对应的优化参数
+    std::vector<double *> &parameter_blocks = residual_block_info->parameter_blocks; // 这个残差模块对应的优化参数
     std::vector<int> parameter_block_sizes = residual_block_info->cost_function->parameter_block_sizes();  // 每个参数是多少维的
 
     for (int i = 0; i < static_cast<int>(residual_block_info->parameter_blocks.size()); i++)    // 遍历每个参数
