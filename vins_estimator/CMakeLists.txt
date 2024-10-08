@@ -37,6 +37,8 @@ if(spdlog_FOUND)
 endif()
 include_directories(${spdlog_INCLUDE_DIRS})
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(Eigen3  REQUIRED)
 include_directories(
