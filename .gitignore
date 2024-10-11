@@ -4,4 +4,6 @@
 */.idea
 */build
 *.png
-
+*.log
+*.xml
+.idea/

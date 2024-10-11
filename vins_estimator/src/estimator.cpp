@@ -3,7 +3,7 @@
 //#define LINEINCAM
 Estimator::Estimator(): f_manager{Rs}
 {
-    ROS_INFO("init begins");
+    LOGD("ctor");
     clearState();
     failure_occur = 0;
 }
@@ -18,8 +18,6 @@ void Estimator::setParameter()
     f_manager.setRic(ric);
     ProjectionFactor::sqrt_info =  FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
     lineProjectionFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
-//    lineProjectionFactor::sqrt_info =  Matrix2d::Identity();
-
     baseline_ = BASE_LINE;
 }
 
@@ -81,7 +79,7 @@ void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const
         acc_0 = linear_acceleration;
         gyr_0 = angular_velocity;
     }
-    // 如果 预积分数组pre_integrations 里还没有指向第frame_count帧的预积分量，那就创建
+    //当滑窗不满的时候，把当前测量值加入到滑窗指定位置
     if (!pre_integrations[frame_count])
     {
         pre_integrations[frame_count] = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]}; // acc_0, gyr_0 上一时刻的imu测量值
@@ -947,17 +945,17 @@ bool Estimator::failureDetection()
 {
     if (f_manager.last_track_num < 2)
     {
-        ROS_INFO(" little feature %d", f_manager.last_track_num);
+        LOGW("too few feature({})", f_manager.last_track_num);
         return true;
     }
     if (Bas[WINDOW_SIZE].norm() > 2.5)
     {
-        ROS_INFO(" big IMU acc bias estimation %f", Bas[WINDOW_SIZE].norm());
+        LOGW("too big IMU acc bias:{}", Bas[WINDOW_SIZE].norm());
         return true;
     }
     if (Bgs[WINDOW_SIZE].norm() > 1.0)
     {
-        ROS_INFO(" big IMU gyr bias estimation %f", Bgs[WINDOW_SIZE].norm());
+        LOGW("too big IMU gyr bias:{}", Bgs[WINDOW_SIZE].norm());
         return true;
     }
     /*
@@ -967,25 +965,25 @@ bool Estimator::failureDetection()
         return true;
     }
     */
-    Vector3d tmp_P = Ps[WINDOW_SIZE];
-    if ((tmp_P - last_P).norm() > 5)
+    Vector3d cur_P = Ps[WINDOW_SIZE];
+    if ((cur_P - last_P).norm() > 5)
     {
-        ROS_INFO(" big translation");
+        LOGW("too large translation");
         return true;
     }
-    if (abs(tmp_P.z() - last_P.z()) > 1)
+    if (abs(cur_P.z() - last_P.z()) > 1)
     {
-        ROS_INFO(" big z translation");
+        LOGW("too large z translation");
         return true; 
     }
-    Matrix3d tmp_R = Rs[WINDOW_SIZE];
-    Matrix3d delta_R = tmp_R.transpose() * last_R;
+    Matrix3d cur_R = Rs[WINDOW_SIZE];
+    Matrix3d delta_R = cur_R.transpose() * last_R;
     Quaterniond delta_Q(delta_R);
     double delta_angle;
     delta_angle = acos(delta_Q.w()) * 2.0 / 3.14 * 180.0;
     if (delta_angle > 50)
     {
-        ROS_INFO(" big delta_angle ");
+        LOGW("too large delta_angle ");
         return true;
     }
     return false;

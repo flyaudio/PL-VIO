@@ -59,8 +59,8 @@ public:
     vector< int > lineID;
 
     // opencv3 lsd+lbd
-    std::vector<KeyLine> keylsd;
-    Mat lbd_descr;
+    std::vector<cv::line_descriptor::KeyLine> keylsd;
+    cv::Mat lbd_descr;
 };
 typedef shared_ptr< FrameLines > FrameLinesPtr;
 

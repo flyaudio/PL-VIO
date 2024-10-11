@@ -19,6 +19,7 @@ find_package(OpenCV REQUIRED)
 catkin_package()
 
 include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${catkin_INCLUDE_DIRS}
     )
 

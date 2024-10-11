@@ -1,4 +1,5 @@
 #include "linefeature_tracker.h"
+#include "../log.hpp"
 void visualize_line_match(cv::Mat imageMat1, cv::Mat imageMat2,
                           std::vector<KeyLine> octave0_1, std::vector<KeyLine>octave0_2,
                           std::vector<DMatch> good_matches)
@@ -127,19 +128,17 @@ LineFeatureTracker::LineFeatureTracker()
 
 void LineFeatureTracker::readIntrinsicParameter(const string &calib_file)
 {
-    ROS_INFO("reading paramerter of camera %s", calib_file.c_str());
-
+    LOGI("reading paramerter:{}", calib_file.c_str());
     m_camera = CameraFactory::instance()->generateCameraFromYamlFile(calib_file);
     K_ = m_camera->initUndistortRectifyMap(undist_map1_,undist_map2_);    
-
 }
 
 /**
  * @return 得到归一化平面上的坐标
 */
-vector<Line> LineFeatureTracker::undistortedLineEndPoints()
+std::vector<Line> LineFeatureTracker::undistortedLineEndPoints()
 {
-    vector<Line> un_lines;
+    std::vector<Line> un_lines;
     un_lines = curframe_->vecLine;
     float fx = K_.at<float>(0, 0);
     float fy = K_.at<float>(1, 1);
@@ -436,50 +435,45 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
     }
 
 
+    //step 3: compute matches
     if(curframe_->keylsd.size() > 0)
     {
-
-        /* compute matches */
         TicToc t_match;
         std::vector<DMatch> lsd_matches;
-        Ptr<BinaryDescriptorMatcher> bdm_;
-        bdm_ = BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
-        bdm_->match(forwframe_->lbd_descr, curframe_->lbd_descr, lsd_matches);
+        Ptr<BinaryDescriptorMatcher> matcher;
+        matcher = BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
+        matcher->match(forwframe_->lbd_descr, curframe_->lbd_descr, lsd_matches);
         sum_time += t_match.toc();
         mean_time = sum_time/frame_cnt;
-        ROS_INFO("line feature tracker mean costs: %fms", mean_time);
+        // ROS_INFO("line feature tracker mean costs: %fms", mean_time);
 
         /* select best matches */
-        std::vector<DMatch> good_matches;
-        std::vector<KeyLine> good_Keylines;
+        std::vector<cv::DMatch> good_matches;
+        // std::vector<cv::line_descriptor::KeyLine> good_Keylines;
         good_matches.clear();
         for ( int i = 0; i < (int) lsd_matches.size(); i++ )
         {
             if( lsd_matches[i].distance < MATCHES_DIST_THRESHOLD ) {//descriptor distance
-
-                DMatch mt = lsd_matches[i];
-                KeyLine line1 =  forwframe_->keylsd[mt.queryIdx] ;
-                KeyLine line2 =  curframe_->keylsd[mt.trainIdx] ;
-                Point2f serr = line1.getStartPoint() - line2.getStartPoint();
-                Point2f eerr = line1.getEndPoint() - line2.getEndPoint();
-                if((serr.dot(serr) < 60 * 60) && (eerr.dot(eerr) < 60 * 60))   // 线段在图像里不会跑得特别远
+                const cv::DMatch& mt = lsd_matches[i];
+                cv::line_descriptor::KeyLine line1 =  forwframe_->keylsd[mt.queryIdx] ;
+                cv::line_descriptor::KeyLine line2 =  curframe_->keylsd[mt.trainIdx] ;
+                cv::Point2f serr = line1.getStartPoint() - line2.getStartPoint();
+                cv::Point2f eerr = line1.getEndPoint() - line2.getEndPoint();
+                if((serr.dot(serr) < 60 * 60) && (eerr.dot(eerr) < 60 * 60)) { // 线段在图像里不会跑得特别远
                     good_matches.push_back( lsd_matches[i] );
+                }
             }
-
         }
 
-        // std::cout << forwframe_->lineID.size() << " " << curframe_->lineID.size();
-        for (int k = 0; k < good_matches.size(); ++k) {
-            DMatch mt = good_matches[k];
+        for(const cv::DMatch & mt : good_matches) {
             forwframe_->lineID[mt.queryIdx] = curframe_->lineID[mt.trainIdx];
-
         }
         //show 2 frame match
         visualize_line_match(forwframe_->img.clone(), curframe_->img.clone(), forwframe_->keylsd, curframe_->keylsd, good_matches);
 
-        vector<KeyLine> vecLine_tracked, vecLine_new;
-        vector< int > lineID_tracked, lineID_new;
-        Mat DEscr_tracked, Descr_new;
+        std::vector<cv::line_descriptor::KeyLine> vecLine_tracked, vecLine_new;
+        std::vector< int > lineID_tracked, lineID_new;
+        cv::Mat DEscr_tracked, Descr_new;
 
         // 将跟踪的线和没跟踪上的线进行区分
         for (size_t i = 0; i < forwframe_->keylsd.size(); ++i)
@@ -516,10 +510,10 @@ void LineFeatureTracker::readImage(const cv::Mat &_img)
 
     }
 
-    // 将opencv的KeyLine数据转为季哥的Line
+    // 将opencv的KeyLine -> Line
     for (int j = 0; j < forwframe_->keylsd.size(); ++j) {
         Line l;
-        KeyLine lsd = forwframe_->keylsd[j];
+        const KeyLine& lsd = forwframe_->keylsd[j];
         l.StartPt = lsd.getStartPoint();
         l.EndPt = lsd.getEndPoint();
         l.length = lsd.lineLength;
